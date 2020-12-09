@@ -36,7 +36,8 @@ q_sort(int *data, size_t sz)
     if (rank == 0) {
         int part_sz = sz / comm_sz;
         int shift = sz - (part_sz * comm_sz);
-        std::cout << "sz: " << sz << "; comm_sz: " << comm_sz << "; part_sz: " << part_sz << std::endl;
+        std::cout << "sz: " << sz << "; comm_sz: " << comm_sz << "; part_sz: " 
+                << part_sz << "; shift: " << shift << std::endl;
         std::cout << "Original array:" << std::endl;
         for (size_t i = 0; i < sz; ++i) {
             std::cout << data[i] << " ";
@@ -45,7 +46,8 @@ q_sort(int *data, size_t sz)
 
         // send original array parts to other processes [1..comm_sz)
         for (size_t i = 1; i < comm_sz; ++i) {
-            MPI_Send(data + shift + part_sz * sz, part_sz, MPI_INT, i, TAG, MPI_COMM_WORLD);
+            std::cout << "Send part " << i << "; start_index: " << shift + part_sz * (i - 1) << std::endl;
+            MPI_Send(data + shift + part_sz * (i - 1), part_sz, MPI_INT, i, TAG, MPI_COMM_WORLD);
         }
     } else {
         MPI_Status status;
