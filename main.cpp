@@ -1,11 +1,11 @@
 #include "test.h"
 #include <iostream>
-#include <string>
+#include <cstdlib>
 
 int
 main(int argc, char **argv)
 {
-    size_t elm_cnt = std::stoull(argv[1]);
+    size_t elm_cnt = std::atol(argv[1]);
 
     time_testing(elm_cnt);
     
