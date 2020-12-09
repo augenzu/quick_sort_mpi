@@ -51,7 +51,7 @@ q_sort(int *data, size_t sz)
         // with other processes' parts
         // and to avoid memory leak
         sz = part_sz + shift;
-        data = (int *) realloc(data, sz);
+        data = (int *) realloc(data, sz * sizeof(int));
 
         std::cout << "Array part #" << rank << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
     } else {
@@ -82,8 +82,8 @@ q_sort(int *data, size_t sz)
             int middle_i = (data[0] + data[sz - 1]) / 2;
             // send middle value to other 'group' members
             for (size_t dst = rank + 1; dst < rank + step; ++dst) {
-                std::cout << "Cycle iteration " << i << "; I'm the main proc in group; rank: " 
-                        << rank << "; middle_i: " << middle_i << std::endl
+                std::cout << "LE bit: #" << i << "; I'm the main proc in group; rank: " 
+                        << rank << "; orig middle_i: " << middle_i << std::endl
                         << "Start sending to other in group..." << std::endl;
                 int tag = i;
                 MPI_Send(&middle_i, 1, MPI_INT, dst, tag, MPI_COMM_WORLD);
@@ -95,8 +95,8 @@ q_sort(int *data, size_t sz)
             int tag = i;
             MPI_Status status;
             MPI_Recv(&middle_i, 1, MPI_INT, src, tag, MPI_COMM_WORLD, &status);
-            std::cout << "Cycle iteration " << i << "; I'm not a main proc in group; main's rank: " 
-                        << src << "; middle_i: " << middle_i << "; my rank: " << rank << std::endl;
+            std::cout << "LE bit: #" << i << "; I'm not a main proc; main's rank: " 
+                        << src << "; rcvd middle_i: " << middle_i << "; my rank: " << rank << std::endl;
         }
     }
 
