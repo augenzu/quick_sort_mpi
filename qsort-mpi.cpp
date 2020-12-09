@@ -39,7 +39,7 @@ q_sort(int *data, size_t sz)
         for (size_t i = 0; i < sz; ++i) {
             std::cout << data[i] << " ";
         }
-        std::cout << std::endl << "Start sending..." << std::endl;
+        std::cout << std::endl << "Start initial array parts sending..." << std::endl;
 
         // send original array parts to other processes [1..comm_sz)
         for (size_t i = 1; i < comm_sz; ++i) {
@@ -95,8 +95,8 @@ q_sort(int *data, size_t sz)
             int tag = i;
             MPI_Status status;
             MPI_Recv(&middle_i, 1, MPI_INT, src, tag, MPI_COMM_WORLD, &status);
-            std::cout << "Cycle iteration " << i << "; I'm not a main proc in group; mian's rank: " 
-                        << src << "; middle_i: " << middle_i << "my rank: " << rank << std::endl;
+            std::cout << "Cycle iteration " << i << "; I'm not a main proc in group; main's rank: " 
+                        << src << "; middle_i: " << middle_i << "; my rank: " << rank << std::endl;
         }
     }
 
