@@ -1,6 +1,7 @@
 #include "test.h"
 #include "generate-data.h"
 #include "qsort-mpi.h"
+#include <iostream>
 
 void
 time_testing(size_t elm_cnt)
@@ -9,5 +10,5 @@ time_testing(size_t elm_cnt)
 
     q_sort(data, elm_cnt - 1);
 
-    delete[] data;
+    free(data);
 }

@@ -5,7 +5,7 @@
 int *
 test_data(size_t elm_cnt)
 {
-    int *data = new int[elm_cnt];
+    int *data = (int *) calloc(elm_cnt, sizeof(int));
 
     std::srand(42);
 
