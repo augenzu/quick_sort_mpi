@@ -8,7 +8,7 @@ time_testing(size_t elm_cnt)
 {
     int *data = test_data(elm_cnt);
 
-    q_sort(data, elm_cnt - 1);
+    q_sort(data, elm_cnt);
 
     free(data);
 }
