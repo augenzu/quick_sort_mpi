@@ -47,7 +47,7 @@ q_sort(int *data, size_t sz)
         // send original array parts to other processes [1..comm_sz)
         for (size_t i = 1; i < comm_sz; ++i) {
             std::cout << "Send part " << i << "; start_index: " << shift + part_sz * (i - 1) << std::endl;
-            MPI_Send(data + shift + part_sz * (i - 1), part_sz, MPI_INT, i, TAG, MPI_COMM_WORLD);
+            MPI_Send(data + shift + part_sz * i, part_sz, MPI_INT, i, TAG, MPI_COMM_WORLD);
         }
     } else {
         MPI_Status status;
