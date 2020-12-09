@@ -10,7 +10,7 @@ test_data(size_t elm_cnt)
     std::srand(42);
 
     for (size_t i = 0; i < elm_cnt; ++i) {
-        data[i] = std::rand() % 20;  // REMOVE IT!!! IT'S FOR TESTING ONLY!
+        data[i] = std::rand() % 1000;  // REMOVE IT!!! IT'S FOR TESTING ONLY!
     }
 
     return data;

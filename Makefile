@@ -20,4 +20,4 @@ generate-data.o: generate-data.cpp
 	$(CC) $(CFLAGS) generate-data.cpp -o generate-data.o
 
 clean:
-	rm -f main test *.o
+	rm -f main *.o
