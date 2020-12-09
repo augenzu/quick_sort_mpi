@@ -1,0 +1,18 @@
+# compiled object files
+*.o
+
+# temporary files
+*~
+
+# executable files
+main
+
+# bluegene out & err files
+*.out
+*.err
+
+# bsub tasks
+*.lsf
+
+# .vscode settings
+**/.vscode/
