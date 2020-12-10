@@ -207,6 +207,8 @@ q_sort(int *orig_data, int orig_sz)
         // first, it recieves lt_split array, and then sends ge_split array
         if (one_bit) {
             int partner_rank = (rank & ~step);
+            std::cout << "LE bit: #" << i << "; in swapping. My one_bit == 1; rank: " 
+                    << rank << "; partner_rank: " << partner_rank << std::endl;
             int tag = deg + i;
             // sent lt_split to partner
             MPI_Send(lt_split, lt_split_sz, MPI_INT, partner_rank, tag, MPI_COMM_WORLD);
@@ -234,6 +236,8 @@ q_sort(int *orig_data, int orig_sz)
                     << data[sz - 1] << std::endl;
         } else {
             int partner_rank = (rank | step);
+            std::cout << "LE bit: #" << i << "; in swapping. My one_bit == 0; rank: " 
+                    << rank << "; partner_rank: " << partner_rank << std::endl;
             int tag = deg + i;
             // need to know incoming partner's lt_split array size (i. e. partner_lt_split_sz)
             MPI_Status status;
