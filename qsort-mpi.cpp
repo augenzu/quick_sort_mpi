@@ -292,6 +292,7 @@ q_sort(int *orig_data, int orig_sz)
         int tag = rank;
         MPI_Send(data, sz, MPI_INT, dst, tag, MPI_COMM_WORLD);
         free(data);
+        MPI_Finalize();
     } else {  // rank 0 recieves array parts from other ranks & collects the entire array
         int i = 0;  // orig_data index
 
@@ -329,18 +330,22 @@ q_sort(int *orig_data, int orig_sz)
         free(part_szs);
 
         end = MPI_Wtime();
-        double elapsed = end - start;
-        std::cout << "elapsed, within q_sort: " << elapsed << std::endl;
 
-        // std::cout << "i == orig_sz: " << (i == orig_sz) << std::endl;
-        //     std::cout << "Finalized. Sorted array:" << std::endl;
-        // for (int i = 0; i < orig_sz; ++i) {
-        //     std::cout << orig_data[i] << " ";
-        // }
-        // std::cout << std::endl;
+        MPI_Finalize();
+
+        double elapsed = end - start;
+        std::cout << "elapsed, measured by MPI_Wtime inside of q_sort: " << elapsed << std::endl;
+
+        // and show resultant sorted array, just for my paranoia
+        std::cout << "i == orig_sz: " << (i == orig_sz) << std::endl;
+            std::cout << std::endl << "Sorted array:" << std::endl;
+        for (int i = 0; i < orig_sz; ++i) {
+            std::cout << orig_data[i] << " ";
+        }
+        std::cout << std::endl;
     }
 
-    MPI_Finalize();
+    // MPI_Finalize();
 
     // std::cout << "Finalized" << std::endl;
 }
