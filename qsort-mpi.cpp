@@ -92,7 +92,7 @@ merge(const int *lhs, int lsz, const int *rhs, int rsz, int *dst)
 
 void
 q_sort(int *orig_data, int orig_sz)
-{   
+{  
     MPI_Init(NULL, NULL);
 
     int comm_sz, rank;
@@ -276,5 +276,45 @@ q_sort(int *orig_data, int orig_sz)
         }
     }
 
+    // after sorting array parts we need 
+    // to collect them together (to send to process 0)
+    // and write all of them to original data array
+    // in order of sending processes ranks
+    if (rank != 0) {  // ranks 1, 2, ... send their array parts to rank 0
+        int dst = 0;
+        int tag = rank;
+        MPI_Send(data, sz, MPI_INT, dst, tag, MPI_COMM_WORLD);
+        free(data);
+        data = NULL;
+    } else {  // rank 0 recieves array parts from other ranks & collects the entire array
+        int i = 0;  // orig_data index
+        // write array part 0 to original array
+        for (size_t j = 0; j < sz; ++j) {
+            orig_data[i++] = data[j];
+        }
+        free(data);
+        data = NULL;
+        for (int src = 1; src < comm_sz; ++src) {
+            int tag = src;
+            MPI_Status status;
+            MPI_Probe(src, tag, MPI_COMM_WORLD, &status);
+            int part_sz = 0;
+            MPI_Get_count(&status, MPI_INT, &part_sz);
+            int *part = (int *) calloc(part_sz, sizeof(int));
+            MPI_Recv(part, part_sz, MPI_INT, src, tag, MPI_COMM_WORLD, &status);
+            for (size_t j = 0; j < part_sz; ++j) {
+                orig_data[i++] = part[j];
+            }
+            free(part);
+        }
+        std::cout << "i == orig_sz: " << (i == orig_sz) << std::endl;
+    }
+
     MPI_Finalize();
+
+    std::cout << "Finalized. Sorted array:" << std::endl;
+    for (int i = 0; i < orig_sz; ++i) {
+        std::cout << orig_data[i] << " ";
+    }
+    std::cout << std::endl;
 }
