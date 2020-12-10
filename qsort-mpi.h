@@ -5,6 +5,6 @@
 #include <iostream>
 
 void
-q_sort(int *, size_t);
+q_sort(int *, int);
 
 #endif

@@ -5,7 +5,7 @@
 int
 main(int argc, char **argv)
 {
-    size_t elm_cnt = std::atol(argv[1]);
+    int elm_cnt = std::atoi(argv[1]);
 
     time_testing(elm_cnt);
     

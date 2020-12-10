@@ -4,6 +4,6 @@
 #include <iostream>
 
 void
-time_testing(size_t);
+time_testing(int);
 
 #endif

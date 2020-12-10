@@ -1,5 +1,6 @@
 #include "qsort-mpi.h"
 #include <iostream>
+#include <cstring>
 
 // integer log2(num); works only if num == 2**deg && deg in [0, 30]
 // (yes, this is a crutch but this is enough for our goals)
@@ -20,52 +21,59 @@ log2(int num)
 }
 
 void
-q_sort(int *data, size_t sz)
-{
-    enum { TAG = 0 };
-    
+q_sort(int *orig_data, int orig_sz)
+{   
     MPI_Init(NULL, NULL);
 
     int comm_sz, rank;
     MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
+
+    // parts of original array for every process
+    int *data = nullptr;
+    int sz = 0;
     
     if (rank == 0) {
-        int part_sz = sz / comm_sz;
-        int shift = sz - (part_sz * comm_sz);
-        std::cout << "sz: " << sz << "; comm_sz: " << comm_sz << "; part_sz: " 
+        int part_sz = orig_sz / comm_sz;
+        int shift = orig_sz - (part_sz * comm_sz);
+        std::cout << "orig_sz: " << orig_sz << "; comm_sz: " << comm_sz << "; part_sz: " 
                 << part_sz << "; shift: " << shift << std::endl;
         std::cout << "Original array:" << std::endl;
-        for (size_t i = 0; i < sz; ++i) {
-            std::cout << data[i] << " ";
+        for (int i = 0; i < orig_sz; ++i) {
+            std::cout << orig_data[i] << " ";
         }
         std::cout << std::endl << "Start initial array parts sending..." << std::endl;
 
         // send original array parts to other processes [1..comm_sz)
-        for (size_t i = 1; i < comm_sz; ++i) {
+        for (int i = 1; i < comm_sz; ++i) {
             std::cout << "Send part " << i << "; start_index: " << shift + part_sz * i << std::endl;
-            MPI_Send(data + shift + part_sz * i, part_sz, MPI_INT, i, TAG, MPI_COMM_WORLD);
+            int dst = i;
+            int tag = 0;
+            MPI_Send(orig_data + shift + part_sz * i, part_sz, MPI_INT, dst, tag, MPI_COMM_WORLD);
         }
 
         // need this to work with 0's array part the same as we do this 
         // with other processes' parts
-        // and to avoid memory leak
         sz = part_sz + shift;
-        data = (int *) realloc(data, sz * sizeof(int));
+        memcpy(data, orig_data, sz * sizeof(int));
+        // and to avoid memory leak
+        free(orig_data);
+        orig_data = nullptr;        
 
         std::cout << "Array part #" << rank << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
     } else {
         MPI_Status status;
         // need to know incoming array size (i. e. part_sz from process 0)
-        MPI_Probe(0, TAG, MPI_COMM_WORLD, &status);
-        int sz;
+        int tag = 0;
+        MPI_Probe(0, tag, MPI_COMM_WORLD, &status);
         MPI_Get_count(&status, MPI_INT, &sz);
 
         // allocate memory for incoming array
-        int *data = (int *) calloc(sz, sizeof(int));
+        data = (int *) calloc(sz, sizeof(int));
 
         // recieve array
-        MPI_Recv(data, sz, MPI_INT, 0, TAG, MPI_COMM_WORLD, &status);
+        int src = 0;
+        MPI_Recv(data, sz, MPI_INT, src, tag, MPI_COMM_WORLD, &status);
 
         std::cout << "Array part #" << rank << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
     }
@@ -81,10 +89,10 @@ q_sort(int *data, size_t sz)
             // middle value to slit 'group' array elements by
             int middle_i = (data[0] + data[sz - 1]) / 2;
             // send middle value to other 'group' members
-            for (size_t dst = rank + 1; dst < rank + step; ++dst) {
-                std::cout << "LE bit: #" << i << "; I'm the main proc in group; rank: " 
-                        << rank << "; orig middle_i: " << middle_i << std::endl
-                        << "Start sending to other in group..." << std::endl;
+            std::cout << "LE bit: #" << i << "; I'm the main proc in group; rank: " 
+                    << rank << "; orig middle_i: " << middle_i << std::endl
+                    << "Start sending to other in group..." << std::endl;
+            for (int dst = rank + 1; dst < rank + step; ++dst) {
                 int tag = i;
                 MPI_Send(&middle_i, 1, MPI_INT, dst, tag, MPI_COMM_WORLD);
             }

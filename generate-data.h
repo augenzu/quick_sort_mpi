@@ -4,6 +4,6 @@
 #include <iostream>
 
 int *
-test_data(size_t);
+test_data(int);
 
 #endif

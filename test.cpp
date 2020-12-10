@@ -4,7 +4,7 @@
 #include <iostream>
 
 void
-time_testing(size_t elm_cnt)
+time_testing(int elm_cnt)
 {
     int *data = test_data(elm_cnt);
 
