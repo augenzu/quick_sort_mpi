@@ -38,8 +38,8 @@ cmp(const void *a, const void *b)
 // and which are greater or equal to it (to lt_split and ge_split arrays)
 void
 split_by_value(int split, const int *src, int sz, 
-        int *lt_split, int *lt_split_sz, 
-        int *ge_split, int *ge_split_sz)
+        int **lt_split, int *lt_split_sz, 
+        int **ge_split, int *ge_split_sz)
 {
     // how much array elments are less then split value
     *lt_split_sz = 0;
@@ -50,16 +50,16 @@ split_by_value(int split, const int *src, int sz,
     }
     *ge_split_sz = sz - *lt_split_sz;
         
-    lt_split = *lt_split_sz ? (int *) calloc(*lt_split_sz, sizeof(int)) : NULL;
-    ge_split = *ge_split_sz ? (int *) calloc(*ge_split_sz, sizeof(int)) : NULL;
+    *lt_split = *lt_split_sz ? (int *) calloc(*lt_split_sz, sizeof(int)) : NULL;
+    *ge_split = *ge_split_sz ? (int *) calloc(*ge_split_sz, sizeof(int)) : NULL;
 
     // split src by split value
     int lt_i = 0, ge_i = 0;
     for (int i = 0; i < sz; ++i) {
         if (src[i] < split) {
-            lt_split[lt_i++] = src[i];
+            (*lt_split)[lt_i++] = src[i];
         } else {
-            ge_split[ge_i++] = src[i];
+            (*ge_split)[ge_i++] = src[i];
         }
     }
 }
@@ -186,7 +186,7 @@ q_sort(int *orig_data, int orig_sz)
         int *ge_split = NULL;
         int lt_split_sz = 0;
         int ge_split_sz = 0;
-        split_by_value(split, data, sz, lt_split, &lt_split_sz, ge_split, &ge_split_sz);
+        split_by_value(split, data, sz, &lt_split, &lt_split_sz, &ge_split, &ge_split_sz);
         std::cout << "LE bit: #" << i << "; after splitting. My rank: " << rank 
                 << "; split: " << split << "; lt_split_sz: " << lt_split_sz
                 << ", ge_split_sz: " << ge_split_sz << std::endl;
@@ -210,7 +210,7 @@ q_sort(int *orig_data, int orig_sz)
             int partner_rank = (rank & ~i_bit_mask);
             std::cout << "LE bit: #" << i << "; in swapping. My i_bit == 1; rank: " 
                     << rank << "; partner_rank: " << partner_rank << std::endl;
-            int tag = deg + i;
+            int tag = comm_sz * i + rank;
             // sent lt_split to partner
             MPI_Send(lt_split, lt_split_sz, MPI_INT, partner_rank, tag, MPI_COMM_WORLD);
             // need to know incoming partner's ge_split array size (i. e. partner_ge_split_sz)
@@ -239,7 +239,7 @@ q_sort(int *orig_data, int orig_sz)
             int partner_rank = (rank | i_bit_mask);
             std::cout << "LE bit: #" << i << "; in swapping. My i_bit == 0; rank: " 
                     << rank << "; partner_rank: " << partner_rank << std::endl;
-            int tag = deg + i;
+            int tag = comm_sz * i + partner_rank;
             // need to know incoming partner's lt_split array size (i. e. partner_lt_split_sz)
             MPI_Status status;
             MPI_Probe(partner_rank, tag, MPI_COMM_WORLD, &status);
