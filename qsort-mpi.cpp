@@ -30,7 +30,7 @@ q_sort(int *orig_data, int orig_sz)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
 
     // parts of original array for every process
-    int *data = nullptr;
+    int *data = NULL;
     int sz = 0;
     
     if (rank == 0) {
@@ -58,7 +58,7 @@ q_sort(int *orig_data, int orig_sz)
         memcpy(data, orig_data, sz * sizeof(int));
         // and to avoid memory leak
         free(orig_data);
-        orig_data = nullptr;        
+        orig_data = NULL;        
 
         std::cout << "Array part #" << rank << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
     } else {
