@@ -95,6 +95,9 @@ q_sort(int *orig_data, int orig_sz)
 {  
     MPI_Init(NULL, NULL);
 
+    // for time measuring
+    double start, end;
+
     int comm_sz, rank;
     MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
@@ -104,19 +107,24 @@ q_sort(int *orig_data, int orig_sz)
     int sz = 0;
     
     if (rank == 0) {
+        // need to check whether wtime measured within MPI_Init & MPI_Fin
+        // is very distinct from wtime measured before & after
+        // the whole q_sort function or not
+        start = MPI_Wtime();
+
         int part_sz = orig_sz / comm_sz;
         int shift = orig_sz - (part_sz * comm_sz);
-        std::cout << "orig_sz: " << orig_sz << "; comm_sz: " << comm_sz << "; part_sz: " 
-                << part_sz << "; shift: " << shift << std::endl;
-        std::cout << "Original array:" << std::endl;
-        for (int i = 0; i < orig_sz; ++i) {
-            std::cout << orig_data[i] << " ";
-        }
-        std::cout << std::endl << "Start initial array parts sending..." << std::endl;
+        // std::cout << "orig_sz: " << orig_sz << "; comm_sz: " << comm_sz << "; part_sz: " 
+        //         << part_sz << "; shift: " << shift << std::endl;
+        // std::cout << "Original array:" << std::endl;
+        // for (int i = 0; i < orig_sz; ++i) {
+        //     std::cout << orig_data[i] << " ";
+        // }
+        // std::cout << std::endl << "Start initial array parts sending..." << std::endl;
 
         // send original array parts to other processes [1..comm_sz)
         for (int i = 1; i < comm_sz; ++i) {
-            std::cout << "Send part " << i << "; start_index: " << shift + part_sz * i << std::endl;
+            // std::cout << "Send part " << i << "; start_index: " << shift + part_sz * i << std::endl;
             int dst = i;
             int tag = 0;
             MPI_Send(orig_data + shift + part_sz * i, part_sz, MPI_INT, dst, tag, MPI_COMM_WORLD);
@@ -128,7 +136,7 @@ q_sort(int *orig_data, int orig_sz)
         data = (int *) calloc(sz, sizeof(int));
         memcpy(data, orig_data, sz * sizeof(int));     
 
-        std::cout << "Array part #" << rank << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
+        // std::cout << "Array part #" << rank << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
     } else {
         MPI_Status status;
         // need to know incoming array size (i. e. part_sz from process 0)
@@ -143,13 +151,13 @@ q_sort(int *orig_data, int orig_sz)
         // recieve array
         MPI_Recv(data, sz, MPI_INT, src, tag, MPI_COMM_WORLD, &status);
 
-        std::cout << "Array part " << rank << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
+        // std::cout << "Array part " << rank << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
     }
 
     // sort each array part
     qsort(data, sz, sizeof(int), cmp);
-    std::cout << "After sorting initial array parts; array part " << rank 
-            << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
+    // std::cout << "After sorting initial array parts; array part " << rank 
+    //         << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
 
     int deg = log2(comm_sz);
 
@@ -157,16 +165,15 @@ q_sort(int *orig_data, int orig_sz)
     for (int i = deg; i > 0; --i) {
         int step = (1 << i);
         int mask = ~(step - 1);
-        int split = 0;  // i.e. pivot - value to split array elements bys
+        int split = 0;  // i.e. pivot - value to split array elements by
 
         // calculate and send & recieve split values within a groups
         if ((rank & mask) == rank) {  // 'main' process in a 'group'
             // value to slit 'group' array elements by
             split = (data[0] + data[sz - 1]) / 2;
             // send split value to other 'group' members
-            std::cout << "LE bit: #" << i << "; before swapping. Main's rank: " << rank 
-                    << "; my rank: " << rank << "; orig split: " << split << std::endl;
-                    // << "Start sending to other in group..." << std::endl;
+            // std::cout << "LE bit: #" << i << "; before swapping. Main's rank: " << rank 
+            //         << "; my rank: " << rank << "; orig split: " << split << std::endl;
             for (int dst = rank + 1; dst < rank + step; ++dst) {
                 int tag = i;
                 MPI_Send(&split, 1, MPI_INT, dst, tag, MPI_COMM_WORLD);
@@ -177,8 +184,8 @@ q_sort(int *orig_data, int orig_sz)
             int tag = i;
             MPI_Status status;
             MPI_Recv(&split, 1, MPI_INT, src, tag, MPI_COMM_WORLD, &status);
-            std::cout << "LE bit: #" << i << "; before swapping. Main's rank: " << src 
-                    << "; my rank: " << rank << "; rcvd split: " << split << std::endl;
+            // std::cout << "LE bit: #" << i << "; before swapping. Main's rank: " << src 
+            //         << "; my rank: " << rank << "; rcvd split: " << split << std::endl;
         }        
 
         // split array by split value
@@ -187,9 +194,9 @@ q_sort(int *orig_data, int orig_sz)
         int lt_split_sz = 0;
         int ge_split_sz = 0;
         split_by_value(split, data, sz, &lt_split, &lt_split_sz, &ge_split, &ge_split_sz);
-        std::cout << "LE bit: #" << i << "; after splitting. My rank: " << rank 
-                << "; split: " << split << "; lt_split_sz: " << lt_split_sz
-                << ", ge_split_sz: " << ge_split_sz << std::endl;
+        // std::cout << "LE bit: #" << i << "; after splitting. My rank: " << rank 
+        //         << "; split: " << split << "; lt_split_sz: " << lt_split_sz
+        //         << ", ge_split_sz: " << ge_split_sz << std::endl;
         // std::cout << "lt_split: " << lt_split[0] << " .. " << lt_split[lt_split_sz - 1]
         //         << "; ge_split: " << ge_split[0] << " .. " << ge_split[ge_split_sz - 1] << std::endl;
 
@@ -208,8 +215,8 @@ q_sort(int *orig_data, int orig_sz)
         // first, it recieves lt_split array, and then sends ge_split array
         if (i_bit) {
             int partner_rank = (rank & ~i_bit_mask);
-            std::cout << "LE bit: #" << i << "; in swapping. My i_bit == 1; rank: " 
-                    << rank << "; partner_rank: " << partner_rank << std::endl;
+            // std::cout << "LE bit: #" << i << "; in swapping. My i_bit == 1; rank: " 
+            //         << rank << "; partner_rank: " << partner_rank << std::endl;
             int tag = comm_sz * i + rank;
             // sent lt_split to partner
             MPI_Send(lt_split, lt_split_sz, MPI_INT, partner_rank, tag, MPI_COMM_WORLD);
@@ -232,13 +239,13 @@ q_sort(int *orig_data, int orig_sz)
                 free(partner_ge_split);
             }
 
-            std::cout << "LE bit: #" << i << "; after swapping. My i_bit == 1; rank: " 
-                    << rank << "; split: " << split << "; data: " << data[0] << " .. " 
-                    << data[sz - 1] << std::endl;
+            // std::cout << "LE bit: #" << i << "; after swapping. My i_bit == 1; rank: " 
+            //         << rank << "; split: " << split << "; data: " << data[0] << " .. " 
+            //         << data[sz - 1] << std::endl;
         } else {
             int partner_rank = (rank | i_bit_mask);
-            std::cout << "LE bit: #" << i << "; in swapping. My i_bit == 0; rank: " 
-                    << rank << "; partner_rank: " << partner_rank << std::endl;
+            // std::cout << "LE bit: #" << i << "; in swapping. My i_bit == 0; rank: " 
+            //         << rank << "; partner_rank: " << partner_rank << std::endl;
             int tag = comm_sz * i + partner_rank;
             // need to know incoming partner's lt_split array size (i. e. partner_lt_split_sz)
             MPI_Status status;
@@ -262,9 +269,9 @@ q_sort(int *orig_data, int orig_sz)
                 free(partner_lt_split);
             }
             
-            std::cout << "LE bit: #" << i << "; after swapping. My i_bit == 0; rank: " 
-                    << rank << "; split: " << split << "; data: " << data[0] << " .. " 
-                    << data[sz - 1] << std::endl;
+            // std::cout << "LE bit: #" << i << "; after swapping. My i_bit == 0; rank: " 
+            //         << rank << "; split: " << split << "; data: " << data[0] << " .. " 
+            //         << data[sz - 1] << std::endl;
         }
 
         // remove auxilary arrays after splitting, swapping and merging
@@ -321,15 +328,19 @@ q_sort(int *orig_data, int orig_sz)
         free(parts);
         free(part_szs);
 
-        std::cout << "i == orig_sz: " << (i == orig_sz) << std::endl;
-            std::cout << "Finalized. Sorted array:" << std::endl;
-        for (int i = 0; i < orig_sz; ++i) {
-            std::cout << orig_data[i] << " ";
-        }
-        std::cout << std::endl;
+        end = MPI_Wtime();
+        double elapsed = end - start;
+        std::cout << "elapsed, within q_sort: " << elapsed << std::endl;
+
+        // std::cout << "i == orig_sz: " << (i == orig_sz) << std::endl;
+        //     std::cout << "Finalized. Sorted array:" << std::endl;
+        // for (int i = 0; i < orig_sz; ++i) {
+        //     std::cout << orig_data[i] << " ";
+        // }
+        // std::cout << std::endl;
     }
 
     MPI_Finalize();
 
-    std::cout << "Finalized" << std::endl;
+    // std::cout << "Finalized" << std::endl;
 }
