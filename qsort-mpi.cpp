@@ -118,7 +118,8 @@ q_sort(int *orig_data, int orig_sz)
 
     // sort each array part
     qsort(data, sz, sizeof(int), cmp);
-    std::cout << "After sorting initial array parts: " << data[0] << " .. " << data[sz - 1] << std::endl;
+    std::cout << "After sorting initial array parts; array part #" << rank 
+            << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
 
     int deg = log2(comm_sz);
 
