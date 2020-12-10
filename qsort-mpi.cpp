@@ -285,36 +285,51 @@ q_sort(int *orig_data, int orig_sz)
         int tag = rank;
         MPI_Send(data, sz, MPI_INT, dst, tag, MPI_COMM_WORLD);
         free(data);
-        data = NULL;
     } else {  // rank 0 recieves array parts from other ranks & collects the entire array
         int i = 0;  // orig_data index
+
         // write array part 0 to original array
         for (size_t j = 0; j < sz; ++j) {
             orig_data[i++] = data[j];
         }
         free(data);
-        data = NULL;
+
+        int **parts = (int **) calloc(comm_sz, sizeof(int *));
+        int *part_szs = (int *) calloc(comm_sz, sizeof(int));
+
+        // recieve & save array parts
         for (int src = 1; src < comm_sz; ++src) {
             int tag = src;
             MPI_Status status;
             MPI_Probe(src, tag, MPI_COMM_WORLD, &status);
             int part_sz = 0;
             MPI_Get_count(&status, MPI_INT, &part_sz);
-            int *part = (int *) calloc(part_sz, sizeof(int));
-            MPI_Recv(part, part_sz, MPI_INT, src, tag, MPI_COMM_WORLD, &status);
-            for (size_t j = 0; j < part_sz; ++j) {
-                orig_data[i++] = part[j];
-            }
-            free(part);
+            parts[src] = (int *) calloc(part_sz, sizeof(int));
+            MPI_Recv(parts[src], part_sz, MPI_INT, src, tag, MPI_COMM_WORLD, &status);
+            part_szs[src] = part_sz;
         }
+
+        // write array parts to original array in order of their numbers
+        for (int src = 1; src < comm_sz; ++src) {
+            int part_sz = part_szs[src];
+            for (size_t j = 0; j < part_sz; ++j) {
+                orig_data[i++] = parts[src][j];
+            }
+            free(parts[src]);
+        }
+
+        free(parts);
+        free(part_szs);
+
         std::cout << "i == orig_sz: " << (i == orig_sz) << std::endl;
+            std::cout << "Finalized. Sorted array:" << std::endl;
+        for (int i = 0; i < orig_sz; ++i) {
+            std::cout << orig_data[i] << " ";
+        }
+        std::cout << std::endl;
     }
 
     MPI_Finalize();
 
-    std::cout << "Finalized. Sorted array:" << std::endl;
-    for (int i = 0; i < orig_sz; ++i) {
-        std::cout << orig_data[i] << " ";
-    }
-    std::cout << std::endl;
+    std::cout << "Finalized" << std::endl;
 }
