@@ -55,10 +55,8 @@ q_sort(int *orig_data, int orig_sz)
         // need this to work with 0's array part the same as we do this 
         // with other processes' parts
         sz = part_sz + shift;
-        memcpy(data, orig_data, sz * sizeof(int));
-        // and to avoid memory leak
-        free(orig_data);
-        orig_data = NULL;        
+        data = (int *) calloc(sz, sizeof(int));
+        memcpy(data, orig_data, sz * sizeof(int));     
 
         std::cout << "Array part #" << rank << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
     } else {
