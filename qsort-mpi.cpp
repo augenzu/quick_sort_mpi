@@ -34,9 +34,39 @@ cmp(const void *a, const void *b)
     }
 }
 
-// merge two ascending arrays to one (dst)
+// splits src array values to which are less then split value
+// and which are greater or equal to it (to lt_split and ge_split arrays)
 void
-merge(int *lhs, int lsz, int *rhs, int rsz, int *dst)
+split_by_value(int split, const int *src, int sz, 
+        int *lt_split, int *lt_split_sz, 
+        int *ge_split, int *ge_split_sz)
+{
+    // how much array elments are less then split value
+    *lt_split_sz = 0;
+    for (int i = 0; i < sz; ++i) {
+        if (src[i] < split) {
+            ++*lt_split_sz;
+        }
+    }
+    *ge_split_sz = sz - *lt_split_sz;
+        
+    lt_split = *lt_split_sz ? (int *) calloc(*lt_split_sz, sizeof(int)) : NULL;
+    ge_split = *ge_split_sz ? (int *) calloc(*ge_split_sz, sizeof(int)) : NULL;
+
+    // split src by split value
+    int lt_i = 0, ge_i = 0;
+    for (int i = 0; i < sz; ++i) {
+        if (src[i] < split) {
+            lt_split[lt_i++] = src[i];
+        } else {
+            ge_split[ge_i++] = src[i];
+        }
+    }
+}
+
+// merges two ascending arrays to one (dst)
+void
+merge(const int *lhs, int lsz, const int *rhs, int rsz, int *dst)
 {
     int sz = lsz + rsz;
     int i = 0;
@@ -113,12 +143,12 @@ q_sort(int *orig_data, int orig_sz)
         // recieve array
         MPI_Recv(data, sz, MPI_INT, src, tag, MPI_COMM_WORLD, &status);
 
-        std::cout << "Array part #" << rank << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
+        std::cout << "Array part " << rank << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
     }
 
     // sort each array part
     qsort(data, sz, sizeof(int), cmp);
-    std::cout << "After sorting initial array parts; array part #" << rank 
+    std::cout << "After sorting initial array parts; array part " << rank 
             << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
 
     int deg = log2(comm_sz);
@@ -127,49 +157,41 @@ q_sort(int *orig_data, int orig_sz)
     for (int i = deg; i > 0; --i) {
         int step = (1 << i);
         int mask = ~(step - 1);
-        int middle = 0;  // i.e. pivot - value to split array elements bys
+        int split = 0;  // i.e. pivot - value to split array elements bys
 
+        // calculate and send & recieve split values within a groups
         if ((rank & mask) == rank) {  // 'main' process in a 'group'
-            // middle value to slit 'group' array elements by
-            middle = (data[0] + data[sz - 1]) / 2;
-            // send middle value to other 'group' members
+            // value to slit 'group' array elements by
+            split = (data[0] + data[sz - 1]) / 2;
+            // send split value to other 'group' members
             std::cout << "LE bit: #" << i << "; before swapping. Main's rank: " << rank 
-                    << "; my rank: " << rank << "; orig middle: " << middle << std::endl;
+                    << "; my rank: " << rank << "; orig split: " << split << std::endl;
                     // << "Start sending to other in group..." << std::endl;
             for (int dst = rank + 1; dst < rank + step; ++dst) {
                 int tag = i;
-                MPI_Send(&middle, 1, MPI_INT, dst, tag, MPI_COMM_WORLD);
+                MPI_Send(&split, 1, MPI_INT, dst, tag, MPI_COMM_WORLD);
             }
         } else {  // all the processes in a 'group' except of 'main'
-            // recieve middle value to slit array elements by
+            // recieve value to slit array elements by
             int src = (rank & mask);
             int tag = i;
             MPI_Status status;
-            MPI_Recv(&middle, 1, MPI_INT, src, tag, MPI_COMM_WORLD, &status);
+            MPI_Recv(&split, 1, MPI_INT, src, tag, MPI_COMM_WORLD, &status);
             std::cout << "LE bit: #" << i << "; before swapping. Main's rank: " << src 
-                    << "; my rank: " << rank << "; rcvd middle: " << middle << std::endl;
-        }
+                    << "; my rank: " << rank << "; rcvd split: " << split << std::endl;
+        }        
 
-        // how much array elments are less then middle value
-        int lt_middle_sz = 0;
-        for (int j = 0; j < sz; ++j) {
-            if (data[j] < middle) {
-                ++lt_middle_sz;
-            }
-        }
-        int *lt_middle = lt_middle_sz ? (int *) calloc(lt_middle_sz, sizeof(int)) : NULL;
-        int ge_middle_sz = sz - lt_middle_sz;
-        int *ge_middle = ge_middle_sz ? (int *) calloc(ge_middle_sz, sizeof(int)) : NULL;
-
-        // split array by middle value
-        int lt_j = 0, ge_j = 0;
-        for (int j = 0; j < sz; ++j) {
-            if (data[j] < middle) {
-                lt_middle[lt_j++] = data[j];
-            } else {
-                ge_middle[ge_j++] = data[j];
-            }
-        }
+        // split array by split value
+        int *lt_split = NULL;
+        int *ge_split = NULL;
+        int lt_split_sz = 0;
+        int ge_split_sz = 0;
+        split_by_value(split, data, sz, lt_split, &lt_split_sz, ge_split, &ge_split_sz);
+        std::cout << "LE bit: #" << i << "; after splitting. My rank: " << rank 
+                << "; split: " << split << "; lt_split_sz: " << lt_split_sz
+                << ", ge_split_sz: " << ge_split_sz << std::endl;
+        // std::cout << "lt_split: " << lt_split[0] << " .. " << lt_split[lt_split_sz - 1]
+        //         << "; ge_split: " << ge_split[0] << " .. " << ge_split[ge_split_sz - 1] << std::endl;
 
         free(data);
         data = NULL;
@@ -178,67 +200,75 @@ q_sort(int *orig_data, int orig_sz)
         // need this to decide this process sends or recieves first
         int one_bit = (rank & step);
 
-        // process with one_bit == 1 sends lt_middle array to its partner
+        // process with one_bit == 1 sends lt_split array to its partner
         // (partner - process with the same rank number except of one_bit == 0)
-        // and then recieves from it its ge_middle array;
+        // and then recieves from it its ge_split array;
         // the partner, therefore, does the opposite:
-        // first, it recieves lt_middle array, and then sends ge_middle array
+        // first, it recieves lt_split array, and then sends ge_split array
         if (one_bit) {
             int partner_rank = (rank & ~step);
             int tag = deg + i;
-            // sent lt_middle to partner
-            MPI_Send(lt_middle, lt_middle_sz, MPI_INT, partner_rank, tag, MPI_COMM_WORLD);
-            // need to know incoming partner's ge_middle array size (i. e. partner_ge_middle_sz)
+            // sent lt_split to partner
+            MPI_Send(lt_split, lt_split_sz, MPI_INT, partner_rank, tag, MPI_COMM_WORLD);
+            // need to know incoming partner's ge_split array size (i. e. partner_ge_split_sz)
             MPI_Status status;
             MPI_Probe(partner_rank, tag, MPI_COMM_WORLD, &status);
-            int partner_ge_middle_sz = 0;
-            MPI_Get_count(&status, MPI_INT, &partner_ge_middle_sz);
-            int *partner_ge_middle = (int *) calloc(partner_ge_middle_sz, sizeof(int));
-            // recieve ge_middle from partner
-            MPI_Recv(partner_ge_middle, partner_ge_middle_sz, 
+            int partner_ge_split_sz = 0;
+            MPI_Get_count(&status, MPI_INT, &partner_ge_split_sz);
+            int *partner_ge_split = (int *) calloc(partner_ge_split_sz, sizeof(int));
+            // recieve ge_split from partner
+            MPI_Recv(partner_ge_split, partner_ge_split_sz, 
                     MPI_INT, partner_rank, tag, MPI_COMM_WORLD, &status);
-            // collect new data from ge_middle & partner_ge_middle
-            sz = ge_middle_sz + partner_ge_middle_sz;
+            // collect new data from ge_split & partner_ge_split
+            sz = ge_split_sz + partner_ge_split_sz;
             data = (int *) calloc(sz, sizeof(int));
-            // merge ge_middle with partner_ge_middle to data
-            merge(ge_middle, ge_middle_sz, partner_ge_middle, partner_ge_middle_sz, data);
+            // merge ge_split with partner_ge_split to data
+            merge(ge_split, ge_split_sz, partner_ge_split, partner_ge_split_sz, data);
             // remove auxilary array
-            free(partner_ge_middle);
+            if (partner_ge_split) {
+                free(partner_ge_split);
+            }
 
             std::cout << "LE bit: #" << i << "; after swapping. My one_bit == 1; rank: " 
-                    << rank << "; middle: " << middle << "; data: " << data[0] << " .. " 
+                    << rank << "; split: " << split << "; data: " << data[0] << " .. " 
                     << data[sz - 1] << std::endl;
         } else {
             int partner_rank = (rank | step);
             int tag = deg + i;
-            // need to know incoming partner's lt_middle array size (i. e. partner_lt_middle_sz)
+            // need to know incoming partner's lt_split array size (i. e. partner_lt_split_sz)
             MPI_Status status;
             MPI_Probe(partner_rank, tag, MPI_COMM_WORLD, &status);
-            int partner_lt_middle_sz = 0;
-            MPI_Get_count(&status, MPI_INT, &partner_lt_middle_sz);
-            int *partner_lt_middle = (int *) calloc(partner_lt_middle_sz, sizeof(int));
-            // recieve lt_middle from partner
-            MPI_Recv(partner_lt_middle, partner_lt_middle_sz, 
+            int partner_lt_split_sz = 0;
+            MPI_Get_count(&status, MPI_INT, &partner_lt_split_sz);
+            int *partner_lt_split = (int *) calloc(partner_lt_split_sz, sizeof(int));
+            // recieve lt_split from partner
+            MPI_Recv(partner_lt_split, partner_lt_split_sz, 
                     MPI_INT, partner_rank, tag, MPI_COMM_WORLD, &status);
-            // sent ge_middle to partner
-            MPI_Send(ge_middle, ge_middle_sz, MPI_INT, partner_rank, tag, MPI_COMM_WORLD);
+            // sent ge_split to partner
+            MPI_Send(ge_split, ge_split_sz, MPI_INT, partner_rank, tag, MPI_COMM_WORLD);
 
-            // collect new data from lt_middle & partner_lt_middle
-            sz = lt_middle_sz + partner_lt_middle_sz;
+            // collect new data from lt_split & partner_lt_split
+            sz = lt_split_sz + partner_lt_split_sz;
             data = (int *) calloc(sz, sizeof(int));
-            // merge lt_middle with partner_lt_middle to data
-            merge(lt_middle, lt_middle_sz, partner_lt_middle, partner_lt_middle_sz, data);
+            // merge lt_split with partner_lt_split to data
+            merge(lt_split, lt_split_sz, partner_lt_split, partner_lt_split_sz, data);
             // remove auxilary array
-            free(partner_lt_middle);
-
+            if (partner_lt_split) {
+                free(partner_lt_split);
+            }
+            
             std::cout << "LE bit: #" << i << "; after swapping. My one_bit == 0; rank: " 
-                    << rank << "; middle: " << middle << "; data: " << data[0] << " .. " 
+                    << rank << "; split: " << split << "; data: " << data[0] << " .. " 
                     << data[sz - 1] << std::endl;
         }
 
         // remove auxilary arrays after splitting, swapping and merging
-        free(lt_middle);
-        free(ge_middle);
+        if (lt_split) {
+            free(lt_split);
+        }
+        if (ge_split) {
+            free(ge_split);
+        }
     }
 
     MPI_Finalize();
