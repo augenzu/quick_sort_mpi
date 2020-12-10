@@ -151,8 +151,8 @@ q_sort(int *orig_data, int orig_sz)
 
         // how much array elments are less then middle value
         int lt_middle_sz = 0;
-        for (int i = 0; i < sz; ++i) {
-            if (data[i] < middle) {
+        for (int j = 0; j < sz; ++j) {
+            if (data[j] < middle) {
                 ++lt_middle_sz;
             }
         }
@@ -161,12 +161,12 @@ q_sort(int *orig_data, int orig_sz)
         int *ge_middle = ge_middle_sz ? (int *) calloc(ge_middle_sz, sizeof(int)) : NULL;
 
         // split array by middle value
-        int lt_i = 0, ge_i = 0;
-        for (int i = 0; i < sz; ++i) {
-            if (data[i] < middle) {
-                lt_middle[lt_i++] = data[i];
+        int lt_j = 0, ge_j = 0;
+        for (int j = 0; j < sz; ++j) {
+            if (data[j] < middle) {
+                lt_middle[lt_j++] = data[j];
             } else {
-                ge_middle[ge_i++] = data[i];
+                ge_middle[ge_j++] = data[j];
             }
         }
 
