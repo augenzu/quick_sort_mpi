@@ -198,16 +198,17 @@ q_sort(int *orig_data, int orig_sz)
         sz = 0;
 
         // need this to decide this process sends or recieves first
-        int one_bit = (rank & step);
+        int i_bit_mask = (step >> 1);
+        int i_bit = (rank & i_bit_mask);
 
-        // process with one_bit == 1 sends lt_split array to its partner
-        // (partner - process with the same rank number except of one_bit == 0)
+        // process with i_bit == 1 sends lt_split array to its partner
+        // (partner - process with the same rank number except of i_bit == 0)
         // and then recieves from it its ge_split array;
         // the partner, therefore, does the opposite:
         // first, it recieves lt_split array, and then sends ge_split array
-        if (one_bit) {
-            int partner_rank = (rank & ~step);
-            std::cout << "LE bit: #" << i << "; in swapping. My one_bit == 1; rank: " 
+        if (i_bit) {
+            int partner_rank = (rank & ~i_bit_mask);
+            std::cout << "LE bit: #" << i << "; in swapping. My i_bit == 1; rank: " 
                     << rank << "; partner_rank: " << partner_rank << std::endl;
             int tag = deg + i;
             // sent lt_split to partner
@@ -231,12 +232,12 @@ q_sort(int *orig_data, int orig_sz)
                 free(partner_ge_split);
             }
 
-            std::cout << "LE bit: #" << i << "; after swapping. My one_bit == 1; rank: " 
+            std::cout << "LE bit: #" << i << "; after swapping. My i_bit == 1; rank: " 
                     << rank << "; split: " << split << "; data: " << data[0] << " .. " 
                     << data[sz - 1] << std::endl;
         } else {
-            int partner_rank = (rank | step);
-            std::cout << "LE bit: #" << i << "; in swapping. My one_bit == 0; rank: " 
+            int partner_rank = (rank | i_bit_mask);
+            std::cout << "LE bit: #" << i << "; in swapping. My i_bit == 0; rank: " 
                     << rank << "; partner_rank: " << partner_rank << std::endl;
             int tag = deg + i;
             // need to know incoming partner's lt_split array size (i. e. partner_lt_split_sz)
@@ -261,7 +262,7 @@ q_sort(int *orig_data, int orig_sz)
                 free(partner_lt_split);
             }
             
-            std::cout << "LE bit: #" << i << "; after swapping. My one_bit == 0; rank: " 
+            std::cout << "LE bit: #" << i << "; after swapping. My i_bit == 0; rank: " 
                     << rank << "; split: " << split << "; data: " << data[0] << " .. " 
                     << data[sz - 1] << std::endl;
         }
