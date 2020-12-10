@@ -107,8 +107,8 @@ q_sort(int *orig_data, int orig_sz)
     int sz = 0;
     
     if (rank == 0) {
-        // need to check whether wtime measured within MPI_Init & MPI_Fin
-        // is very distinct from wtime measured before & after
+        // need to check whether time (MPI_Wtime) measured inside MPI_Init & MPI_Fin
+        // is very distinct from time (wall & cpu) measured outside
         // the whole q_sort function or not
         start = MPI_Wtime();
 
