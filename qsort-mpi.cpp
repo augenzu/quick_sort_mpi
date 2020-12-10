@@ -133,9 +133,9 @@ q_sort(int *orig_data, int orig_sz)
             // middle value to slit 'group' array elements by
             middle = (data[0] + data[sz - 1]) / 2;
             // send middle value to other 'group' members
-            std::cout << "LE bit: #" << i << "; before swapping. I'm the main proc in group; rank: " 
-                    << rank << "; orig middle: " << middle << std::endl
-                    << "Start sending to other in group..." << std::endl;
+            std::cout << "LE bit: #" << i << "; before swapping. Main's rank: " << rank 
+                    << "; my rank: " << rank << "; orig middle: " << middle << std::endl;
+                    // << "Start sending to other in group..." << std::endl;
             for (int dst = rank + 1; dst < rank + step; ++dst) {
                 int tag = i;
                 MPI_Send(&middle, 1, MPI_INT, dst, tag, MPI_COMM_WORLD);
@@ -146,8 +146,8 @@ q_sort(int *orig_data, int orig_sz)
             int tag = i;
             MPI_Status status;
             MPI_Recv(&middle, 1, MPI_INT, src, tag, MPI_COMM_WORLD, &status);
-            std::cout << "LE bit: #" << i << "; before swapping. I'm not a main proc; main's rank: " 
-                        << src << "; rcvd middle: " << middle << "; my rank: " << rank << std::endl;
+            std::cout << "LE bit: #" << i << "; before swapping. Main's rank: " << src 
+                    << "; my rank: " << rank << "; rcvd middle: " << middle << std::endl;
         }
 
         // how much array elments are less then middle value
