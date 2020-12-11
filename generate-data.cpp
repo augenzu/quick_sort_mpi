@@ -3,14 +3,14 @@
 #include <cstdlib>
 
 int *
-test_data(int elm_cnt)
+test_data(int sz)
 {
-    int *data = (int *) calloc(elm_cnt, sizeof(int));
+    int *data = (int *) calloc(sz, sizeof(int));
 
     std::srand(42);
 
-    for (int i = 0; i < elm_cnt; ++i) {
-        data[i] = std::rand() % 1000;  // REMOVE IT!!! IT'S FOR TESTING ONLY!
+    for (int i = 0; i < sz; ++i) {
+        data[i] = std::rand();
     }
 
     return data;
