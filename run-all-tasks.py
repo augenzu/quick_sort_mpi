@@ -38,6 +38,7 @@ def run_all_tasks():
         sleep(5 * 60)
         for nelms in [16384000, 32768000]:
             run_task(nprocs, nelms, path, expected_time=4)
+        sleep(5 * 60)
 
 
 if __name__ == '__main__':
