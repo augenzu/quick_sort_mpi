@@ -22,27 +22,22 @@ def run_task(nprocs, nelms, path, expected_time=1):
 def run_all_tasks():
     TIMINGS_DIR = './timings/'
 
-    ntryes = int(sys.argv[-1])
+    ntry = sys.argv[-1]
 
-    for ntry in range(ntryes):
-        path = TIMINGS_DIR + str(ntry)
+    path = TIMINGS_DIR + ntry
 
-        if not os.path.exists(path):
-            os.makedirs(path)
+    if not os.path.exists(path):
+        os.makedirs(path)
 
-        for nprocs in [2, 4, 8, 16, 32, 64, 128, 256, 512]:#, 1024, 2048]:
-            for nelms in [256000, 512000, 1024000, 2048000]:
-                run_task(nprocs, nelms, path, expected_time=1)
-            sleep(5 * 60)
-            for nelms in [4096000, 8192000]:
-                run_task(nprocs, nelms, path, expected_time=2)
-            sleep(5 * 60)
-            for nelms in [16384000, 32768000]:
-                run_task(nprocs, nelms, path, expected_time=4)
-            sleep(5 * 60)
-
-        if ntry < ntryes - 1:
-            sleep(20 * 60)  # 20 min
+    for nprocs in [2, 4, 8, 16, 32, 64, 128, 256, 512]:#, 1024, 2048]:
+        for nelms in [256000, 512000, 1024000, 2048000]:
+            run_task(nprocs, nelms, path, expected_time=1)
+        sleep(5 * 60)
+        for nelms in [4096000, 8192000]:
+            run_task(nprocs, nelms, path, expected_time=2)
+        sleep(5 * 60)
+        for nelms in [16384000, 32768000]:
+            run_task(nprocs, nelms, path, expected_time=4)
 
 
 if __name__ == '__main__':

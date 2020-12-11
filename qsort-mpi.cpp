@@ -316,6 +316,10 @@ q_sort(int *orig_data, int orig_sz)
         MPI_Finalize();
 
         double elapsed = end - start;
-        std::cout << std::setw(12) << std::setprecision(8) << std::fixed << elapsed << std::endl;
+
+        // save to file: number of processes, array size, elapsed time
+        std::cout << std::setw(4) << comm_sz
+                << std::setw(9) << orig_sz
+                << std::setw(12) << std::setprecision(8) << std::fixed << elapsed << std::endl;
     }
 }
