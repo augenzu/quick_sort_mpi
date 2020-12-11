@@ -1,7 +1,5 @@
 import os
-from pathlib import Path
 import sys
-import time
 
 
 def run_task(nprocs, nelms, path):
@@ -29,7 +27,8 @@ if __name__ == '__main__':
 
     path = TIMINGS_DIR + try_num
 
-    Path(path).mkdir(parents=True, exist_ok=True)
+    if not os.path.exists(path):
+        os.makedirs(path)
 
     for nprocs in [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]:
         for nelms in nelms_list:
