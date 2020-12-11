@@ -1,4 +1,5 @@
 #include "qsort-mpi.h"
+#include <iomanip>
 #include <iostream>
 #include <cstring>
 
@@ -334,15 +335,16 @@ q_sort(int *orig_data, int orig_sz)
         MPI_Finalize();
 
         double elapsed = end - start;
-        std::cout << "elapsed, measured by MPI_Wtime inside of q_sort: " << elapsed << std::endl;
+        // std::cout << "elapsed, measured by MPI_Wtime inside of q_sort: " << elapsed << std::endl;
+        std::cout << std::setw(12) << std::setprecision(8) << std::fixed << elapsed << std::endl;
 
         // and show resultant sorted array, just for my paranoia
-        std::cout << "i == orig_sz: " << (i == orig_sz) << std::endl;
-            std::cout << std::endl << "Sorted array:" << std::endl;
-        for (int i = 0; i < orig_sz; ++i) {
-            std::cout << orig_data[i] << " ";
-        }
-        std::cout << std::endl;
+        // std::cout << "i == orig_sz: " << (i == orig_sz) << std::endl;
+        //     std::cout << std::endl << "Sorted array:" << std::endl;
+        // for (int i = 0; i < orig_sz; ++i) {
+        //     std::cout << orig_data[i] << " ";
+        // }
+        // std::cout << std::endl;
     }
 
     // MPI_Finalize();
