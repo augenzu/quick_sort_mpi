@@ -3,7 +3,7 @@ import sys
 
 
 def run_task(nprocs, nelms, path):
-    wtime = '00:01:00' if nelms < 8192000 else '00:02:01'
+    wtime = '00:01:00' if nelms < 8192000 and nprocs < 512 else '00:02:00'
     fname = str(nprocs) + '-' + str(nelms)
     fout = path + '/' + fname + '.out'
     ferr = path + '/' + fname + '.err'
