@@ -1,7 +1,7 @@
 #include "test.h"
 #include "generate-data.h"
 #include "qsort-mpi.h"
-#include <iostream>
+#include <cstdlib>
 
 void
 time_testing(int sz)

@@ -1,5 +1,4 @@
 #include "generate-data.h"
-#include <iostream>
 #include <cstdlib>
 
 int *
