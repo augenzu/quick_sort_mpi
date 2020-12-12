@@ -17,6 +17,7 @@ def run_task(nprocs, nelms, path, expected_time=1):
             ' main -- ' + str(nelms)
 
     os.system(cmd)
+    print(f'Submit task {nprocs}-{nelms}')
 
 
 def run_all_tasks():
@@ -32,14 +33,18 @@ def run_all_tasks():
     for nprocs in [2, 4, 8, 16, 32, 64, 128, 256, 512]:#, 1024, 2048]:
         for nelms in [256000, 512000, 1024000, 2048000]:
             run_task(nprocs, nelms, path, expected_time=1)
+        print('Sleep for 5 min...')
         sleep(5 * 60)
         for nelms in [4096000, 8192000]:
             run_task(nprocs, nelms, path, expected_time=2)
+        print('Sleep for 5 min...')
         sleep(5 * 60)
         for nelms in [16384000, 32768000]:
             run_task(nprocs, nelms, path, expected_time=4)
+        print('Sleep for 5 min...')
         sleep(5 * 60)
 
 
 if __name__ == '__main__':
     run_all_tasks()
+    print('All the tasks have been submitted successfully')
