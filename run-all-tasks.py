@@ -34,15 +34,15 @@ def run_all_tasks():
         for nelms in [256000, 512000, 1024000, 2048000]:
             run_task(nprocs, nelms, path, expected_time=1)
         print('Sleep for 5 min...')
-        sleep(5 * 60)
+        sleep(3 * 60)
         for nelms in [4096000, 8192000]:
             run_task(nprocs, nelms, path, expected_time=2)
         print('Sleep for 5 min...')
-        sleep(5 * 60)
+        sleep(3 * 60)
         for nelms in [16384000, 32768000]:
             run_task(nprocs, nelms, path, expected_time=4)
         print('Sleep for 5 min...')
-        sleep(5 * 60)
+        sleep(3 * 60)
 
 
 if __name__ == '__main__':
