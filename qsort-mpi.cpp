@@ -187,6 +187,8 @@ q_sort(int *orig_data, int orig_sz)
 
     MPI_Scatterv(orig_data, sendcounts, sendoffsets, MPI_INT, data, sz, MPI_INT, root, hypercube_comm);
 
+    std::cout << "Array part of rank: " << rank << ": " << data[0] << " .. " << data[sz - 1] << std::endl;
+
     free(sendcounts);
     free(sendoffsets);
 
