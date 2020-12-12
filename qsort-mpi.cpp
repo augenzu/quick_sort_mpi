@@ -103,6 +103,12 @@ merge(const int *lhs, int lsz, const int *rhs, int rsz, int *dst)
 void
 q_sort(int *orig_data, int orig_sz)
 {  
+    std::cout << "Original array:" << std::endl;
+    for (int i = 0; i < orig_sz; ++i) {
+        std::cout << orig_data[i] << " ";
+    }
+    std::cout << std::endl;
+    
     MPI_Init(NULL, NULL);
 
     // for time measuring
