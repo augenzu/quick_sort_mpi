@@ -112,53 +112,83 @@ q_sort(int *orig_data, int orig_sz)
     MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+    if (rank == 0) {
+        start = MPI_Wtime();
+    }
+
     int deg = log2(comm_sz);
     int dims[deg];
     fill_array(dims, deg, 2);
     int periods[deg];
     fill_array(periods, deg, 0);
-    int reorder = 1;  // ??? mb true?
+    int reorder = 1;
 
     // communicator for hypercube topology
     MPI_Comm hypercube_comm;
     MPI_Cart_create(MPI_COMM_WORLD, deg, dims, periods, reorder, &hypercube_comm);
 
     // parts of original array for every process
-    int *data = NULL;
-    int sz = 0;
+    // int *data = NULL;
+    // int sz = 0;
     
+    // if (rank == 0) {
+    //     int part_sz = orig_sz / comm_sz;
+    //     int shift = orig_sz - (part_sz * comm_sz);
+
+    //     // send original array parts to other processes [1..comm_sz)
+    //     for (int i = 1; i < comm_sz; ++i) {
+    //         int dst = i;
+    //         int tag = 0;
+    //         MPI_Send(orig_data + shift + part_sz * i, part_sz, MPI_INT, dst, tag, hypercube_comm);
+    //     }
+
+    //     // need this to work with 0's array part the same as we do this 
+    //     // with other processes' parts
+    //     sz = part_sz + shift;
+    //     data = (int *) calloc(sz, sizeof(int));
+    //     memcpy(data, orig_data, sz * sizeof(int));
+    // } else {
+    //     MPI_Status status;
+    //     int src = 0;
+    //     int tag = 0;
+
+    //     // need to know incoming array size (i. e. part_sz from process 0)
+    //     MPI_Probe(src, tag, hypercube_comm, &status);
+    //     MPI_Get_count(&status, MPI_INT, &sz);
+
+    //     data = (int *) calloc(sz, sizeof(int));
+
+    //     // recieve array
+    //     MPI_Recv(data, sz, MPI_INT, src, tag, hypercube_comm, &status);
+    // }
+
+    int part_sz = orig_sz / comm_sz;
+    int shift = orig_sz - (part_sz * comm_sz);
+
+    int sz = 0;
     if (rank == 0) {
-        start = MPI_Wtime();
-
-        int part_sz = orig_sz / comm_sz;
-        int shift = orig_sz - (part_sz * comm_sz);
-
-        // send original array parts to other processes [1..comm_sz)
-        for (int i = 1; i < comm_sz; ++i) {
-            int dst = i;
-            int tag = 0;
-            MPI_Send(orig_data + shift + part_sz * i, part_sz, MPI_INT, dst, tag, hypercube_comm);
-        }
-
-        // need this to work with 0's array part the same as we do this 
-        // with other processes' parts
         sz = part_sz + shift;
-        data = (int *) calloc(sz, sizeof(int));
-        memcpy(data, orig_data, sz * sizeof(int));     
     } else {
-        MPI_Status status;
-        int src = 0;
-        int tag = 0;
-
-        // need to know incoming array size (i. e. part_sz from process 0)
-        MPI_Probe(src, tag, hypercube_comm, &status);
-        MPI_Get_count(&status, MPI_INT, &sz);
-
-        data = (int *) calloc(sz, sizeof(int));
-
-        // recieve array
-        MPI_Recv(data, sz, MPI_INT, src, tag, hypercube_comm, &status);
+        sz = part_sz;
     }
+    int *data = (int *) calloc(sz, sizeof(int));
+
+    int *sendcounts = (int *) calloc(comm_sz, sizeof(int));
+    sendcounts[0] = sz;
+    for (int i = 1; i < comm_sz; ++i) {
+        sendcounts[i] = part_sz;
+    }
+    int *sendoffsets = (int *) calloc(comm_sz, sizeof(int));
+    sendoffsets[0] = 0;
+    for (int i = 1; i < comm_sz; ++i) {
+        sendoffsets[i] = sendoffsets[i - 1] + sendcounts[i - 1];
+    }
+    int root = 0;
+
+    MPI_Scatterv(orig_data, sendcounts, sendoffsets, MPI_INT, data, sz, MPI_INT, root, hypercube_comm);
+
+    free(sendcounts);
+    free(sendoffsets);
 
     // sort each array part
     qsort(data, sz, sizeof(int), cmp);
