@@ -21,6 +21,15 @@ log2(int num)
     return deg;
 }
 
+// fills array with equal values
+void
+fill_array(int *arr, int sz, int value)
+{
+    for (int i = 0; i < sz; ++i) {
+        arr[i] = value;
+    }
+}
+
 int 
 cmp(const void *a, const void *b)
 {
@@ -104,13 +113,15 @@ q_sort(int *orig_data, int orig_sz)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     int deg = log2(comm_sz);
-    int dims[deg] = { 2 };
+    int dims[deg];
+    fill_array(dims, deg, 2);
     std::cout << "dims:" << std::endl;
     for (int i = 0; i < deg; ++i) {
         std::cout << dims[i] << " ";
     }
     std::cout << std::endl;
-    int periods[deg] = { 0 };
+    int periods[deg];
+    fill_array(periods, deg, 0);
     int reorder = 0;  // ??? mb true?
 
     // communicator for hypercube topology
