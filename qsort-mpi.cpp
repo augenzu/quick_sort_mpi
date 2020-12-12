@@ -119,15 +119,6 @@ q_sort(int *orig_data, int orig_sz)
     fill_array(periods, deg, 0);
     int reorder = 1;  // ??? mb true?
 
-    if (rank == 0) {
-        std::cout << "deg: " << deg << std::endl;
-        std::cout << "dims:" << std::endl;
-        for (int i = 0; i < deg; ++i) {
-            std::cout << dims[i] << " ";
-        }
-        std::cout << std::endl;
-    }
-
     // communicator for hypercube topology
     MPI_Comm hypercube_comm;
     MPI_Cart_create(MPI_COMM_WORLD, deg, dims, periods, reorder, &hypercube_comm);
