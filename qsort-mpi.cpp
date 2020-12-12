@@ -115,14 +115,18 @@ q_sort(int *orig_data, int orig_sz)
     int deg = log2(comm_sz);
     int dims[deg];
     fill_array(dims, deg, 2);
-    std::cout << "dims:" << std::endl;
-    for (int i = 0; i < deg; ++i) {
-        std::cout << dims[i] << " ";
-    }
-    std::cout << std::endl;
     int periods[deg];
     fill_array(periods, deg, 0);
     int reorder = 0;  // ??? mb true?
+
+    if (rank == 0) {
+        std::cout << "deg: " << deg << std::endl;
+        std::cout << "dims:" << std::endl;
+        for (int i = 0; i < deg; ++i) {
+            std::cout << dims[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     // communicator for hypercube topology
     MPI_Comm hypercube_comm;
@@ -142,7 +146,7 @@ q_sort(int *orig_data, int orig_sz)
         for (int i = 1; i < comm_sz; ++i) {
             int dst = i;
             int tag = 0;
-            MPI_Send(orig_data + shift + part_sz * i, part_sz, MPI_INT, dst, tag, MPI_COMM_WORLD);
+            MPI_Send(orig_data + shift + part_sz * i, part_sz, MPI_INT, dst, tag, hypercube_comm);
         }
 
         // need this to work with 0's array part the same as we do this 
@@ -156,13 +160,13 @@ q_sort(int *orig_data, int orig_sz)
         int tag = 0;
 
         // need to know incoming array size (i. e. part_sz from process 0)
-        MPI_Probe(src, tag, MPI_COMM_WORLD, &status);
+        MPI_Probe(src, tag, hypercube_comm, &status);
         MPI_Get_count(&status, MPI_INT, &sz);
 
         data = (int *) calloc(sz, sizeof(int));
 
         // recieve array
-        MPI_Recv(data, sz, MPI_INT, src, tag, MPI_COMM_WORLD, &status);
+        MPI_Recv(data, sz, MPI_INT, src, tag, hypercube_comm, &status);
     }
 
     // sort each array part
@@ -181,7 +185,7 @@ q_sort(int *orig_data, int orig_sz)
             // send split value to other 'group' members
             for (int dst = rank + 1; dst < rank + step; ++dst) {
                 int tag = i;
-                MPI_Send(&split, 1, MPI_INT, dst, tag, MPI_COMM_WORLD);
+                MPI_Send(&split, 1, MPI_INT, dst, tag, hypercube_comm);
             }
         } else {  // all the processes in a 'group' except of 'main'
             // recieve value to slit array elements by
@@ -189,7 +193,7 @@ q_sort(int *orig_data, int orig_sz)
             int tag = i;
             MPI_Status status;
 
-            MPI_Recv(&split, 1, MPI_INT, src, tag, MPI_COMM_WORLD, &status);
+            MPI_Recv(&split, 1, MPI_INT, src, tag, hypercube_comm, &status);
         }        
 
         // split array by split value
@@ -217,12 +221,12 @@ q_sort(int *orig_data, int orig_sz)
             int tag = comm_sz * i + rank;
 
             // sent lt_split to partner
-            MPI_Send(lt_split, lt_split_sz, MPI_INT, partner_rank, tag, MPI_COMM_WORLD);
+            MPI_Send(lt_split, lt_split_sz, MPI_INT, partner_rank, tag, hypercube_comm);
       
             MPI_Status status;
 
             // need to know incoming partner's ge_split array size (i. e. partner_ge_split_sz)
-            MPI_Probe(partner_rank, tag, MPI_COMM_WORLD, &status);
+            MPI_Probe(partner_rank, tag, hypercube_comm, &status);
             int partner_ge_split_sz = 0;
             MPI_Get_count(&status, MPI_INT, &partner_ge_split_sz);
 
@@ -230,7 +234,7 @@ q_sort(int *orig_data, int orig_sz)
 
             // recieve ge_split from partner
             MPI_Recv(partner_ge_split, partner_ge_split_sz, 
-                    MPI_INT, partner_rank, tag, MPI_COMM_WORLD, &status);
+                    MPI_INT, partner_rank, tag, hypercube_comm, &status);
             // collect new data from ge_split & partner_ge_split
 
             sz = ge_split_sz + partner_ge_split_sz;
@@ -248,7 +252,7 @@ q_sort(int *orig_data, int orig_sz)
             MPI_Status status;
 
             // need to know incoming partner's lt_split array size (i. e. partner_lt_split_sz)
-            MPI_Probe(partner_rank, tag, MPI_COMM_WORLD, &status);
+            MPI_Probe(partner_rank, tag, hypercube_comm, &status);
             int partner_lt_split_sz = 0;
             MPI_Get_count(&status, MPI_INT, &partner_lt_split_sz);
 
@@ -256,9 +260,9 @@ q_sort(int *orig_data, int orig_sz)
 
             // recieve lt_split from partner
             MPI_Recv(partner_lt_split, partner_lt_split_sz, 
-                    MPI_INT, partner_rank, tag, MPI_COMM_WORLD, &status);
+                    MPI_INT, partner_rank, tag, hypercube_comm, &status);
             // sent ge_split to partner
-            MPI_Send(ge_split, ge_split_sz, MPI_INT, partner_rank, tag, MPI_COMM_WORLD);
+            MPI_Send(ge_split, ge_split_sz, MPI_INT, partner_rank, tag, hypercube_comm);
 
             // collect new data from lt_split & partner_lt_split
             sz = lt_split_sz + partner_lt_split_sz;
@@ -289,7 +293,7 @@ q_sort(int *orig_data, int orig_sz)
         int dst = 0;
         int tag = rank;
 
-        MPI_Send(data, sz, MPI_INT, dst, tag, MPI_COMM_WORLD);
+        MPI_Send(data, sz, MPI_INT, dst, tag, hypercube_comm);
 
         free(data);
 
@@ -312,13 +316,13 @@ q_sort(int *orig_data, int orig_sz)
             int tag = src;
             MPI_Status status;
 
-            MPI_Probe(src, tag, MPI_COMM_WORLD, &status);
+            MPI_Probe(src, tag, hypercube_comm, &status);
             int part_sz = 0;
             MPI_Get_count(&status, MPI_INT, &part_sz);
 
             parts[src] = (int *) calloc(part_sz, sizeof(int));
 
-            MPI_Recv(parts[src], part_sz, MPI_INT, src, tag, MPI_COMM_WORLD, &status);
+            MPI_Recv(parts[src], part_sz, MPI_INT, src, tag, hypercube_comm, &status);
             part_szs[src] = part_sz;
         }
 
