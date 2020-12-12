@@ -101,7 +101,21 @@ q_sort(int *orig_data, int orig_sz)
 
     int comm_sz, rank;
     MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    int deg = log2(comm_sz);
+    int dims[deg] = { 2 };
+    std::cout << "dims:" << std::endl;
+    for (int i = 0; i < deg; ++i) {
+        std::cout << dims[i] << " ";
+    }
+    std::cout << std::endl;
+    int periods[deg] = { 0 };
+    int reorder = 0;  // ??? mb true?
+
+    // communicator for hypercube topology
+    MPI_Comm hypercube_comm;
+    MPI_Cart_create(MPI_COMM_WORLD, deg, dims, periods, reorder, &hypercube_comm);
 
     // parts of original array for every process
     int *data = NULL;
@@ -142,8 +156,6 @@ q_sort(int *orig_data, int orig_sz)
 
     // sort each array part
     qsort(data, sz, sizeof(int), cmp);
-
-    int deg = log2(comm_sz);
 
     // main sorting cycle
     for (int i = deg; i > 0; --i) {
