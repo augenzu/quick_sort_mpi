@@ -117,7 +117,7 @@ q_sort(int *orig_data, int orig_sz)
     fill_array(dims, deg, 2);
     int periods[deg];
     fill_array(periods, deg, 0);
-    int reorder = 0;  // ??? mb true?
+    int reorder = 1;  // ??? mb true?
 
     if (rank == 0) {
         std::cout << "deg: " << deg << std::endl;
