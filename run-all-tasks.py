@@ -16,7 +16,7 @@ def run_task(nprocs, nelms, path, expected_time=1):
             ' --stderr ' + ferr + \
             ' main -- ' + str(nelms)
 
-    # os.system(cmd)
+    os.system(cmd)
     print('Submit task {0}-{1}'.format(nprocs, nelms))
 
 
