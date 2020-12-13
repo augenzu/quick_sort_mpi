@@ -103,11 +103,11 @@ merge(const int *lhs, int lsz, const int *rhs, int rsz, int *dst)
 void
 q_sort(int *orig_data, int orig_sz)
 {  
-    // std::cout << "Original array:" << std::endl;
-    // for (int i = 0; i < orig_sz; ++i) {
-    //     std::cout << orig_data[i] << " ";
-    // }
-    // std::cout << std::endl;
+    std::cout << "Original array:" << std::endl;
+    for (int i = 0; i < orig_sz; ++i) {
+        std::cout << orig_data[i] << " ";
+    }
+    std::cout << std::endl;
     
     MPI_Init(NULL, NULL);
 
@@ -132,6 +132,8 @@ q_sort(int *orig_data, int orig_sz)
     // communicator for hypercube topology
     MPI_Comm hypercube_comm;
     MPI_Cart_create(MPI_COMM_WORLD, deg, dims, periods, reorder, &hypercube_comm);
+
+    int root = 0;
 
     // parts of original array for every process
     // int *data = NULL;
@@ -189,7 +191,6 @@ q_sort(int *orig_data, int orig_sz)
     for (int i = 1; i < comm_sz; ++i) {
         sendoffsets[i] = sendoffsets[i - 1] + sendcounts[i - 1];
     }
-    int root = 0;
 
     MPI_Scatterv(orig_data, sendcounts, sendoffsets, MPI_INT, data, sz, MPI_INT, root, hypercube_comm);
 
@@ -318,58 +319,99 @@ q_sort(int *orig_data, int orig_sz)
     // to collect them together (to send to process 0)
     // and write all of them to original data array
     // in order of sending processes ranks
-    if (rank != 0) {  // ranks 1, 2, ... send their array parts to rank 0
-        int dst = 0;
-        int tag = rank;
+    // if (rank != 0) {  // ranks 1, 2, ... send their array parts to rank 0
+    //     int dst = 0;
+    //     int tag = rank;
 
-        MPI_Send(data, sz, MPI_INT, dst, tag, hypercube_comm);
+    //     MPI_Send(data, sz, MPI_INT, dst, tag, hypercube_comm);
 
-        free(data);
+    //     free(data);
 
-        MPI_Finalize();
-    } else {  // rank 0 recieves array parts from other ranks & collects the entire array
-        int i = 0;  // orig_data index
+    //     MPI_Finalize();
+    // } else {  // rank 0 recieves array parts from other ranks & collects the entire array
+    //     int i = 0;  // orig_data index
 
-        // write array part 0 to original array
-        for (size_t j = 0; j < sz; ++j) {
-            orig_data[i++] = data[j];
+    //     // write array part 0 to original array
+    //     for (size_t j = 0; j < sz; ++j) {
+    //         orig_data[i++] = data[j];
+    //     }
+
+    //     free(data);
+
+    //     int **parts = (int **) calloc(comm_sz, sizeof(int *));
+    //     int *part_szs = (int *) calloc(comm_sz, sizeof(int));
+
+    //     // recieve & save array parts
+    //     for (int src = 1; src < comm_sz; ++src) {
+    //         int tag = src;
+    //         MPI_Status status;
+
+    //         MPI_Probe(src, tag, hypercube_comm, &status);
+    //         int part_sz = 0;
+    //         MPI_Get_count(&status, MPI_INT, &part_sz);
+
+    //         parts[src] = (int *) calloc(part_sz, sizeof(int));
+
+    //         MPI_Recv(parts[src], part_sz, MPI_INT, src, tag, hypercube_comm, &status);
+    //         part_szs[src] = part_sz;
+    //     }
+
+    //     // write array parts to original array in order of their numbers
+    //     for (int src = 1; src < comm_sz; ++src) {
+    //         int part_sz = part_szs[src];
+    //         for (size_t j = 0; j < part_sz; ++j) {
+    //             orig_data[i++] = parts[src][j];
+    //         }
+    //         free(parts[src]);
+    //     }
+
+    //     free(parts);
+    //     free(part_szs);
+
+    //     end = MPI_Wtime();
+
+    //     MPI_Finalize();
+
+    //     double elapsed = end - start;
+
+    //     // save to file: number of processes, array size, elapsed time
+    //     std::cout << std::setw(4) << comm_sz
+    //             << std::setw(9) << orig_sz
+    //             << std::setw(12) << std::setprecision(8) << std::fixed << elapsed << std::endl;
+    // }
+
+
+
+    // every process sends its array elements number to process 0
+    // to let it know what values should contain 
+    // recvcounts & recvcoffsets in next MPI_Gatherv
+    // (i. e. gathering sorted array parts from all the processes
+    // to orig_data in process 0)
+
+    int *recvcounts = (int *) calloc(comm_sz, sizeof(int));
+    int sendcount = 1;
+
+    MPI_Gather(&sz, sendcount, MPI_INT, recvcounts, comm_sz, MPI_INT, root, hypercube_comm);
+
+    int *recvoffsets = (int *) calloc(comm_sz, sizeof(int));
+    
+    if (rank == 0) {
+        recvoffsets[0] = 0;
+        for (int i = 1; i < comm_sz; ++i) {
+            recvoffsets[i] = recvoffsets[i - 1] + recvcounts[i - 1];
         }
+    }
 
-        free(data);
+    //gathering all the sorted array parts together
+    MPI_Gatherv(data, sz, MPI_INT, orig_data, recvcounts, recvoffsets, MPI_INT, root, hypercube_comm);
 
-        int **parts = (int **) calloc(comm_sz, sizeof(int *));
-        int *part_szs = (int *) calloc(comm_sz, sizeof(int));
+    free(recvcounts);
+    free(recvoffsets);
 
-        // recieve & save array parts
-        for (int src = 1; src < comm_sz; ++src) {
-            int tag = src;
-            MPI_Status status;
+    free(data);
 
-            MPI_Probe(src, tag, hypercube_comm, &status);
-            int part_sz = 0;
-            MPI_Get_count(&status, MPI_INT, &part_sz);
-
-            parts[src] = (int *) calloc(part_sz, sizeof(int));
-
-            MPI_Recv(parts[src], part_sz, MPI_INT, src, tag, hypercube_comm, &status);
-            part_szs[src] = part_sz;
-        }
-
-        // write array parts to original array in order of their numbers
-        for (int src = 1; src < comm_sz; ++src) {
-            int part_sz = part_szs[src];
-            for (size_t j = 0; j < part_sz; ++j) {
-                orig_data[i++] = parts[src][j];
-            }
-            free(parts[src]);
-        }
-
-        free(parts);
-        free(part_szs);
-
+    if (rank == 0) {
         end = MPI_Wtime();
-
-        MPI_Finalize();
 
         double elapsed = end - start;
 
@@ -377,5 +419,13 @@ q_sort(int *orig_data, int orig_sz)
         std::cout << std::setw(4) << comm_sz
                 << std::setw(9) << orig_sz
                 << std::setw(12) << std::setprecision(8) << std::fixed << elapsed << std::endl;
+
+        std::cout << std::endl << "Sorted array:" << std::endl;
+        for (int i = 0; i < orig_sz; ++i) {
+            std::cout << orig_data[i] << " ";
+        }
+        std::cout << std::endl;
     }
+
+    MPI_Finalize();
 }
