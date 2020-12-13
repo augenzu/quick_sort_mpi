@@ -16,7 +16,7 @@ def run_task(nprocs, nelms, path, expected_time=1):
             ' --stderr ' + ferr + \
             ' main -- ' + str(nelms)
 
-    os.system(cmd)
+    # os.system(cmd)
     print('Submit task {0}-{1}'.format(nprocs, nelms))
 
 
@@ -36,15 +36,19 @@ def run_all_tasks(sleep_min=3):
         print('Sleep for {} min...'.format(sleep_min))
         sleep(sleep_min * 60)
         for nelms in [4096000, 8192000]:
-            run_task(nprocs, nelms, path, expected_time=2)
+            run_task(nprocs, nelms, path, expected_time=1)
         print('Sleep for {} min...'.format(sleep_min))
         sleep(sleep_min * 60)
         for nelms in [16384000, 32768000]:
-            run_task(nprocs, nelms, path, expected_time=4)
+            run_task(nprocs, nelms, path, expected_time=2)
         print('Sleep for {} min...'.format(sleep_min))
         sleep(sleep_min * 60)
 
 
 if __name__ == '__main__':
-    run_all_tasks()
+    if len(sys.argv) > 2:
+        sleep_min = int(sys.argv[1])
+        run_all_tasks(sleep_min=sleep_min)
+    else:
+        run_all_tasks()
     print('All the tasks have been submitted successfully')
