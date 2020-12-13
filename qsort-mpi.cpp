@@ -404,18 +404,18 @@ q_sort(int *orig_data, int orig_sz)
         }
     }
 
-    std::cout << "rank: " << rank << "; sz: " << sz << std::endl;
-    if (rank == 0) {
-        std::cout << "recvcounts:" << std::endl;
-        for (int i = 0; i < comm_sz; ++i) {
-            std::cout << recvcounts[i] << " ";
-        }
-        std::cout << "recvoffsets:" << std::endl;
-        for (int i = 0; i < comm_sz; ++i) {
-            std::cout << recvoffsets[i] << " ";
-        }
-        std::cout << std::endl;
-    }
+    // std::cout << "rank: " << rank << "; sz: " << sz << std::endl;
+    // if (rank == 0) {
+    //     std::cout << "recvcounts:" << std::endl;
+    //     for (int i = 0; i < comm_sz; ++i) {
+    //         std::cout << recvcounts[i] << " ";
+    //     }
+    //     std::cout << "recvoffsets:" << std::endl;
+    //     for (int i = 0; i < comm_sz; ++i) {
+    //         std::cout << recvoffsets[i] << " ";
+    //     }
+    //     std::cout << std::endl;
+    // }
 
     //gathering all the sorted array parts together
     MPI_Gatherv(data, sz, MPI_INT, orig_data, recvcounts, recvoffsets, MPI_INT, root, hypercube_comm);
@@ -425,7 +425,7 @@ q_sort(int *orig_data, int orig_sz)
 
     free(data);
 
-    std::cout << "Sorted" << std::endl;
+    // std::cout << "Sorted" << std::endl;
 
     if (rank == 0) {
         end = MPI_Wtime();
