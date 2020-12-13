@@ -395,12 +395,12 @@ q_sort(int *orig_data, int orig_sz)
 
     int *recvoffsets = (int *) calloc(comm_sz, sizeof(int));
     
-    if (rank == 0) {
+    // if (rank == 0) {
         recvoffsets[0] = 0;
         for (int i = 1; i < comm_sz; ++i) {
             recvoffsets[i] = recvoffsets[i - 1] + recvcounts[i - 1];
         }
-    }
+    // }
 
     std::cout << "rank: " << rank 
             << "; recvcount: " << recvcounts[rank]
