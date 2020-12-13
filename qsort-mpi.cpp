@@ -140,17 +140,6 @@ q_sort(int *orig_data, int orig_sz)
     }
     int *data = (int *) calloc(sz, sizeof(int));
 
-    // int *sendcounts = (int *) calloc(comm_sz, sizeof(int));
-    // sendcounts[0] = sz;
-    // for (int i = 1; i < comm_sz; ++i) {
-    //     sendcounts[i] = part_sz;
-    // }
-    // int *sendoffsets = (int *) calloc(comm_sz, sizeof(int));
-    // sendoffsets[0] = 0;
-    // for (int i = 1; i < comm_sz; ++i) {
-    //     sendoffsets[i] = sendoffsets[i - 1] + sendcounts[i - 1];
-    // }
-
     int *sendcounts = NULL;
     int *sendoffsets = NULL;
     if (rank == root) {
@@ -168,8 +157,6 @@ q_sort(int *orig_data, int orig_sz)
 
     MPI_Scatterv(orig_data, sendcounts, sendoffsets, MPI_INT, data, sz, MPI_INT, root, hypercube_comm);
 
-    // free(sendcounts);
-    // free(sendoffsets);
     if (rank == root) {
         free(sendcounts);
         free(sendoffsets);
@@ -297,21 +284,12 @@ q_sort(int *orig_data, int orig_sz)
     // (i. e. gathering sorted array parts from all the processes
     // to orig_data in process 0)
 
-    // int *recvcounts = (int *) calloc(comm_sz, sizeof(int));
-    // int sendcount = 1;
-    // int recvcount = 1;
-
     int *recvcounts = NULL;
     if (rank == root) {
         recvcounts = (int *) calloc(comm_sz, sizeof(int));
     }
-    // int sendcount = 1;
-    // int recvcount = 1;
 
-    // MPI_Gather(&sz, sendcount, MPI_INT, recvcounts, recvcount, MPI_INT, root, hypercube_comm);
     MPI_Gather(&sz, 1, MPI_INT, recvcounts, 1, MPI_INT, root, hypercube_comm);
-
-    // int *recvoffsets = (int *) calloc(comm_sz, sizeof(int));
 
     int *recvoffsets = NULL;
     
@@ -325,9 +303,6 @@ q_sort(int *orig_data, int orig_sz)
 
     //gathering all the sorted array parts together
     MPI_Gatherv(data, sz, MPI_INT, orig_data, recvcounts, recvoffsets, MPI_INT, root, hypercube_comm);
-
-    // free(recvcounts);
-    // free(recvoffsets);
 
     if (rank == root) {
         free(recvcounts);
