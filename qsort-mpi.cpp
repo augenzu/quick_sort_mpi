@@ -108,11 +108,13 @@ q_sort(int *orig_data, int orig_sz)
     // for time measuring
     double start, end;
 
+    int root = 0;
+
     int comm_sz, rank;
     MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    if (rank == 0) {
+    if (rank == root) {
         start = MPI_Wtime();
     }
 
@@ -121,41 +123,57 @@ q_sort(int *orig_data, int orig_sz)
     fill_array(dims, deg, 2);
     int periods[deg];
     fill_array(periods, deg, 0);
-    // int reorder = 1;
     int reorder = 0;
 
     // communicator for hypercube topology
     MPI_Comm hypercube_comm;
     MPI_Cart_create(MPI_COMM_WORLD, deg, dims, periods, reorder, &hypercube_comm);
 
-    int root = 0;
-
     int part_sz = orig_sz / comm_sz;
     int shift = orig_sz - (part_sz * comm_sz);
 
     int sz = 0;
-    if (rank == 0) {
+    if (rank == root) {
         sz = part_sz + shift;
     } else {
         sz = part_sz;
     }
     int *data = (int *) calloc(sz, sizeof(int));
 
-    int *sendcounts = (int *) calloc(comm_sz, sizeof(int));
-    sendcounts[0] = sz;
-    for (int i = 1; i < comm_sz; ++i) {
-        sendcounts[i] = part_sz;
-    }
-    int *sendoffsets = (int *) calloc(comm_sz, sizeof(int));
-    sendoffsets[0] = 0;
-    for (int i = 1; i < comm_sz; ++i) {
-        sendoffsets[i] = sendoffsets[i - 1] + sendcounts[i - 1];
+    // int *sendcounts = (int *) calloc(comm_sz, sizeof(int));
+    // sendcounts[0] = sz;
+    // for (int i = 1; i < comm_sz; ++i) {
+    //     sendcounts[i] = part_sz;
+    // }
+    // int *sendoffsets = (int *) calloc(comm_sz, sizeof(int));
+    // sendoffsets[0] = 0;
+    // for (int i = 1; i < comm_sz; ++i) {
+    //     sendoffsets[i] = sendoffsets[i - 1] + sendcounts[i - 1];
+    // }
+
+    int *sendcounts = NULL;
+    int *sendoffsets = NULL;
+    if (rank == root) {
+        sendcounts = (int *) calloc(comm_sz, sizeof(int));
+        sendcounts[0] = sz;
+        for (int i = 1; i < comm_sz; ++i) {
+            sendcounts[i] = part_sz;
+        }
+        sendoffsets = (int *) calloc(comm_sz, sizeof(int));
+        sendoffsets[0] = 0;
+        for (int i = 1; i < comm_sz; ++i) {
+            sendoffsets[i] = sendoffsets[i - 1] + sendcounts[i - 1];
+        }
     }
 
     MPI_Scatterv(orig_data, sendcounts, sendoffsets, MPI_INT, data, sz, MPI_INT, root, hypercube_comm);
 
-    free(sendcounts);
-    free(sendoffsets);
+    // free(sendcounts);
+    // free(sendoffsets);
+    if (rank == root) {
+        free(sendcounts);
+        free(sendoffsets);
+    }
 
     // sort each array part
     qsort(data, sz, sizeof(int), cmp);
@@ -279,15 +297,26 @@ q_sort(int *orig_data, int orig_sz)
     // (i. e. gathering sorted array parts from all the processes
     // to orig_data in process 0)
 
-    int *recvcounts = (int *) calloc(comm_sz, sizeof(int));
-    int sendcount = 1;
-    int recvcount = 1;
+    // int *recvcounts = (int *) calloc(comm_sz, sizeof(int));
+    // int sendcount = 1;
+    // int recvcount = 1;
 
-    MPI_Gather(&sz, sendcount, MPI_INT, recvcounts, recvcount, MPI_INT, root, hypercube_comm);
+    int *recvcounts = NULL;
+    if (rank == root) {
+        recvcounts = (int *) calloc(comm_sz, sizeof(int));
+    }
+    // int sendcount = 1;
+    // int recvcount = 1;
 
-    int *recvoffsets = (int *) calloc(comm_sz, sizeof(int));
+    // MPI_Gather(&sz, sendcount, MPI_INT, recvcounts, recvcount, MPI_INT, root, hypercube_comm);
+    MPI_Gather(&sz, 1, MPI_INT, recvcounts, 1, MPI_INT, root, hypercube_comm);
+
+    // int *recvoffsets = (int *) calloc(comm_sz, sizeof(int));
+
+    int *recvoffsets = NULL;
     
-    if (rank == 0) {
+    if (rank == root) {
+        recvoffsets = (int *) calloc(comm_sz, sizeof(int));
         recvoffsets[0] = 0;
         for (int i = 1; i < comm_sz; ++i) {
             recvoffsets[i] = recvoffsets[i - 1] + recvcounts[i - 1];
@@ -297,12 +326,17 @@ q_sort(int *orig_data, int orig_sz)
     //gathering all the sorted array parts together
     MPI_Gatherv(data, sz, MPI_INT, orig_data, recvcounts, recvoffsets, MPI_INT, root, hypercube_comm);
 
-    free(recvcounts);
-    free(recvoffsets);
+    // free(recvcounts);
+    // free(recvoffsets);
+
+    if (rank == root) {
+        free(recvcounts);
+        free(recvoffsets);
+    }
 
     free(data);
 
-    if (rank == 0) {
+    if (rank == root) {
         end = MPI_Wtime();
 
         double elapsed = end - start;
