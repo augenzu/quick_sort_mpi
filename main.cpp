@@ -2,8 +2,6 @@
 #include <iostream>
 #include <cstdlib>
 
-// TODO: cast & gather instead of sending for loops
-
 int
 main(int argc, char **argv)
 {
