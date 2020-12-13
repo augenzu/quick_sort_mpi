@@ -102,13 +102,7 @@ merge(const int *lhs, int lsz, const int *rhs, int rsz, int *dst)
 
 void
 q_sort(int *orig_data, int orig_sz)
-{  
-    std::cout << "Original array:" << std::endl;
-    for (int i = 0; i < orig_sz; ++i) {
-        std::cout << orig_data[i] << " ";
-    }
-    std::cout << std::endl;
-    
+{    
     MPI_Init(NULL, NULL);
 
     // for time measuring
@@ -119,6 +113,12 @@ q_sort(int *orig_data, int orig_sz)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     if (rank == 0) {
+        std::cout << "Original array:" << std::endl;
+        for (int i = 0; i < orig_sz; ++i) {
+            std::cout << orig_data[i] << " ";
+        }
+        std::cout << std::endl;
+
         start = MPI_Wtime();
     }
 
@@ -401,6 +401,13 @@ q_sort(int *orig_data, int orig_sz)
             recvoffsets[i] = recvoffsets[i - 1] + recvcounts[i - 1];
         }
     }
+
+    std::cout << "rank: " << rank 
+            << "; recvcount: " << recvcounts[rank]
+            << "; recvoffset: " << recvoffsets[rank]
+            << "; sz: " << sz
+            << "; data: " << data[0] << " .. " << data[sz - 1]
+            << std::endl;
 
     //gathering all the sorted array parts together
     MPI_Gatherv(data, sz, MPI_INT, orig_data, recvcounts, recvoffsets, MPI_INT, root, hypercube_comm);
