@@ -30,7 +30,8 @@ def run_all_tasks(sleep_min=3):
     if not os.path.exists(path):
         os.makedirs(path)
 
-    for nprocs in [2, 4, 8, 16, 32, 64, 128, 256, 512]:#, 1024, 2048]:
+    # for nprocs in [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]:
+    for nprocs in [1024, 2048]:
         for nelms in [256000, 512000, 1024000, 2048000]:
             run_task(nprocs, nelms, path, expected_time=1)
         print('Sleep for {} min...'.format(sleep_min))
