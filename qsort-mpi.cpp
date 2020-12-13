@@ -395,27 +395,33 @@ q_sort(int *orig_data, int orig_sz)
 
     int *recvoffsets = (int *) calloc(comm_sz, sizeof(int));
     
-    // if (rank == 0) {
+    if (rank == 0) {
         recvoffsets[0] = 0;
         for (int i = 1; i < comm_sz; ++i) {
             recvoffsets[i] = recvoffsets[i - 1] + recvcounts[i - 1];
         }
-    // }
+    }
 
-    std::cout << "rank: " << rank 
-            << "; recvcount: " << recvcounts[rank]
-            << "; recvoffset: " << recvoffsets[rank]
-            << "; sz: " << sz
-            << "; data: " << data[0] << " .. " << data[sz - 1]
-            << std::endl;
+    std::cout << "rank: " << rank << "; sz: " << sz << std::endl;
+    if (rank == 0) {
+        std::cout << "recvcounts:" << std::endl;
+        for (int i = 0; i < comm_sz; ++i) {
+            std::cout << recvcounts[i] << " ";
+        }
+        std::cout << "recvoffsets:" << std::endl;
+        for (int i = 0; i < comm_sz; ++i) {
+            std::cout << recvoffsets[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
     //gathering all the sorted array parts together
     MPI_Gatherv(data, sz, MPI_INT, orig_data, recvcounts, recvoffsets, MPI_INT, root, hypercube_comm);
 
-    // free(recvcounts);
-    // free(recvoffsets);
+    free(recvcounts);
+    free(recvoffsets);
 
-    // free(data);
+    free(data);
 
     std::cout << "Sorted" << std::endl;
 
