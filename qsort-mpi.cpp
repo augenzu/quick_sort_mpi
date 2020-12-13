@@ -412,10 +412,12 @@ q_sort(int *orig_data, int orig_sz)
     //gathering all the sorted array parts together
     MPI_Gatherv(data, sz, MPI_INT, orig_data, recvcounts, recvoffsets, MPI_INT, root, hypercube_comm);
 
-    free(recvcounts);
-    free(recvoffsets);
+    // free(recvcounts);
+    // free(recvoffsets);
 
-    free(data);
+    // free(data);
+
+    std::cout << "Sorted" << std::endl;
 
     if (rank == 0) {
         end = MPI_Wtime();
