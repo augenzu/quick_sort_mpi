@@ -113,11 +113,11 @@ q_sort(int *orig_data, int orig_sz)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     if (rank == 0) {
-        std::cout << "Original array:" << std::endl;
-        for (int i = 0; i < orig_sz; ++i) {
-            std::cout << orig_data[i] << " ";
-        }
-        std::cout << std::endl;
+        // std::cout << "Original array:" << std::endl;
+        // for (int i = 0; i < orig_sz; ++i) {
+        //     std::cout << orig_data[i] << " ";
+        // }
+        // std::cout << std::endl;
 
         start = MPI_Wtime();
     }
@@ -437,11 +437,11 @@ q_sort(int *orig_data, int orig_sz)
                 << std::setw(9) << orig_sz
                 << std::setw(12) << std::setprecision(8) << std::fixed << elapsed << std::endl;
 
-        std::cout << std::endl << "Sorted array:" << std::endl;
-        for (int i = 0; i < orig_sz; ++i) {
-            std::cout << orig_data[i] << " ";
-        }
-        std::cout << std::endl;
+        // std::cout << std::endl << "Sorted array:" << std::endl;
+        // for (int i = 0; i < orig_sz; ++i) {
+        //     std::cout << orig_data[i] << " ";
+        // }
+        // std::cout << std::endl;
     }
 
     MPI_Finalize();
