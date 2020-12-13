@@ -391,8 +391,9 @@ q_sort(int *orig_data, int orig_sz)
 
     int *recvcounts = (int *) calloc(comm_sz, sizeof(int));
     int sendcount = 1;
+    int recvcount = 1;
 
-    MPI_Gather(&sz, sendcount, MPI_INT, recvcounts, comm_sz, MPI_INT, root, hypercube_comm);
+    MPI_Gather(&sz, sendcount, MPI_INT, recvcounts, recvcount, MPI_INT, root, hypercube_comm);
 
     int *recvoffsets = (int *) calloc(comm_sz, sizeof(int));
     
