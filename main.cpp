@@ -7,7 +7,7 @@ main(int argc, char **argv)
 {
     int elm_cnt = std::atoi(argv[1]);
 
-    time_testing(elm_cnt);
+    test(elm_cnt);
     
     return 0;
 }

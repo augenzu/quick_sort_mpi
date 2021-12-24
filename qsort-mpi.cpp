@@ -105,18 +105,11 @@ q_sort(int *orig_data, int orig_sz)
 {    
     MPI_Init(NULL, NULL);
 
-    // for time measuring
-    double start, end;
-
     int root = 0;
 
     int comm_sz, rank;
     MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-    if (rank == root) {
-        start = MPI_Wtime();
-    }
 
     int deg = log2(comm_sz);
     int dims[deg];
@@ -307,19 +300,6 @@ q_sort(int *orig_data, int orig_sz)
     if (rank == root) {
         free(recvcounts);
         free(recvoffsets);
-    }
-
-    free(data);
-
-    if (rank == root) {
-        end = MPI_Wtime();
-
-        double elapsed = end - start;
-
-        // save to file: number of processes, array size, elapsed time
-        std::cout << std::setw(4) << comm_sz
-                << std::setw(9) << orig_sz
-                << std::setw(12) << std::setprecision(8) << std::fixed << elapsed << std::endl;
     }
 
     MPI_Finalize();

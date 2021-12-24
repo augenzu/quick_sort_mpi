@@ -2,6 +2,6 @@
 #define TEST_H
 
 void
-time_testing(int);
+test(int);
 
 #endif

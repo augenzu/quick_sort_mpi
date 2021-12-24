@@ -4,7 +4,7 @@
 #include <cstdlib>
 
 void
-time_testing(int sz)
+test(int sz)
 {
     int *data = test_data(sz);
 

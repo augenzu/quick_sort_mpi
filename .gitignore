@@ -11,8 +11,5 @@ main
 *.out
 *.err
 
-# bsub tasks
-*.lsf
-
 # .vscode settings
 **/.vscode/
