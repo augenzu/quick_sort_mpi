@@ -6,10 +6,10 @@ test_data(int sz)
 {
     int *data = (int *) calloc(sz, sizeof(int));
 
-    std::srand(42);
+    srand(42);
 
     for (int i = 0; i < sz; ++i) {
-        data[i] = std::rand();
+        data[i] = rand() % 100;
     }
 
     return data;
