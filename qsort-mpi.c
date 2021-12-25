@@ -12,15 +12,18 @@
 #define ROOT 0
 #define WANNA_DIE_RANK 1
 
-MPI_Comm comm;
+MPI_Comm comm, working_comm;
+MPI_Group comm_group, working_group;
+int nworking;
+int *working_ranks;
 int rank;
-int err_occured = 1;
+int error_occured = 0;
 
 void
 save_check_point(int *data, int data_sz)
 {
     char fname[MAX_NUMBER_LEN];
-    itoa(rank, fname, RADIX);
+    sprintf(fname, "%d", rank);
     FILE *fout = fopen(fname, "wb");
     fwrite(&data_sz, sizeof(int),  1, fout);
     fwrite(data, sizeof(int),  data_sz, fout);
@@ -31,7 +34,7 @@ void
 load_check_point(int **data, int *data_sz)
 {
     char fname[MAX_NUMBER_LEN];
-    itoa(rank, fname, RADIX);
+    sprintf(fname, "%d", rank);
     FILE *fin = fopen(fname, "rb");
     fread(data_sz, sizeof(int),  1, fin);
     if (*data_sz == 0) {
@@ -46,26 +49,48 @@ load_check_point(int **data, int *data_sz)
 void
 verbose_errhandler(MPI_Comm *pcomm, int *perr, ...)
 {
-    err_occured = 1;
+    error_occured = 1;
 
     int err = *perr;
 
-    MPI_Group group_failed;
+    MPI_Group failed_group;
     int nfailed;
     MPIX_Comm_failure_ack(comm);
-    MPIX_Comm_failure_get_acked(comm, &group_failed);
-    MPI_Group_size(group_failed, &nfailed);
+    MPIX_Comm_failure_get_acked(comm, &failed_group);
+    MPI_Group_size(failed_group, &nfailed);
 
     int comm_real_sz;
     MPI_Comm_size(comm, &comm_real_sz);
     char errstr[MPI_MAX_ERROR_STRING];
     int len;
     MPI_Error_string(err, errstr, &len);
-    printf("Rank %d / %d: Notified of error %s. %d found dead:\n",
+    printf("Rank %d / %d: Notified of error %s. %d found dead.\n",
            rank, comm_real_sz, errstr, nfailed);
 
     MPIX_Comm_shrink(comm, &comm);
     MPI_Comm_rank(comm, &rank);
+
+    MPI_Comm_group(comm, &comm_group);
+    MPI_Group_incl(comm_group, nworking, working_ranks, &working_group);
+    MPI_Comm_create(comm, working_group, &working_comm);
+}
+
+// calculates integer log2(num)
+// works only if num == 2**deg && deg in [0, 30]
+int
+log2(int num)
+{
+    enum { MAX_DEG = 30 };
+
+    int deg = MAX_DEG;
+    int powered = (1 << deg);
+
+    while (powered && (powered & num) != powered) {
+        powered >>= 1;
+        --deg;    
+    }
+
+    return deg;
 }
 
 // fills array with equal values
@@ -157,19 +182,39 @@ q_sort(int *orig_data, int orig_sz)
     MPI_Errhandler errh;
     MPI_Comm_create_errhandler(verbose_errhandler, &errh);
     MPI_Comm_set_errhandler(comm, errh);
+    MPI_Barrier(comm);
 
     int comm_sz;
     MPI_Comm_size(comm, &comm_sz);
     MPI_Comm_rank(comm, &rank);
 
-    int nworking = comm_sz - NAUXILARY;
+    nworking = comm_sz - NAUXILARY;
+
+    working_ranks = (int *) calloc(nworking, sizeof(int));
+    for (int i = 0; i < nworking; ++i) {
+        working_ranks[i] = i;
+    }
+    MPI_Comm_group(comm, &comm_group);
+    MPI_Group_incl(comm_group, nworking, working_ranks, &working_group);
+    MPI_Comm_create(comm, working_group, &working_comm);
+
+    if (rank == ROOT) {
+        printf("before sort: ");
+        for (int i = 0; i < orig_sz; ++i) {
+            printf("%d ", orig_data[i]);
+        }
+        printf("\n");
+    }
 
     int *data = NULL;
     int sz = 0;
 
+    int *sendcounts = NULL;
+    int *sendoffsets = NULL;
+
     if (rank < nworking) {
         int part_sz = orig_sz / nworking;
-        int shift = orig_sz - (part_sz * comm_sz);
+        int shift = orig_sz - (part_sz * nworking);
 
         if (rank == ROOT) {
             sz = part_sz + shift;
@@ -178,29 +223,25 @@ q_sort(int *orig_data, int orig_sz)
         }
         data = (int *) calloc(sz, sizeof(int));
 
-        int *sendcounts = NULL;
-        int *sendoffsets = NULL;
         if (rank == ROOT) {
-            sendcounts = (int *) calloc(comm_sz, sizeof(int));
+            sendcounts = (int *) calloc(nworking, sizeof(int));
             sendcounts[0] = sz;
-            for (int i = 1; i < comm_sz; ++i) {
+            for (int i = 1; i < nworking; ++i) {
                 sendcounts[i] = part_sz;
             }
-            sendoffsets = (int *) calloc(comm_sz, sizeof(int));
+            sendoffsets = (int *) calloc(nworking, sizeof(int));
             sendoffsets[0] = 0;
-            for (int i = 1; i < comm_sz; ++i) {
+            for (int i = 1; i < nworking; ++i) {
                 sendoffsets[i] = sendoffsets[i - 1] + sendcounts[i - 1];
             }
         }
 
-        MPI_Scatterv(orig_data, sendcounts, sendoffsets, MPI_INT, data, sz, MPI_INT, ROOT, comm);
+        MPI_Scatterv(orig_data, sendcounts, sendoffsets, MPI_INT, data, sz, MPI_INT, ROOT, working_comm);
 
         // sort & save each array part
         qsort(data, sz, sizeof(int), cmp);
         save_check_point(data, sz);
-        if (data) {
-            free(data);
-        }
+        free(data);
     }
 
     if (rank == ROOT) {
@@ -213,14 +254,15 @@ q_sort(int *orig_data, int orig_sz)
     }
 
     // main sorting cycle
+    int deg = log2(nworking);
     for (int i = deg; i > 0; --i) {
-        while (error_occured) {
-            error_occured = 0;
-
-            MPI_Barrier(comm);
-
+        check_point_label:
+        MPI_Barrier(comm);
+        if (rank < nworking) {
             load_check_point(&data, &sz);
+        }
 
+        if (rank < nworking) {
             int step = (1 << i);
             int mask = ~(step - 1);
             int split = 0;  // i.e. pivot - value to split array elements by
@@ -232,7 +274,11 @@ q_sort(int *orig_data, int orig_sz)
                 // send split value to other 'group' members
                 for (int dst = rank + 1; dst < rank + step; ++dst) {
                     int tag = i;
-                    MPI_Send(&split, 1, MPI_INT, dst, tag, comm);
+                    MPI_Send(&split, 1, MPI_INT, dst, tag, working_comm);
+                }
+                if (error_occured) {
+                    error_occured = 0;
+                    goto check_point_label;
                 }
             } else {  // all the processes in a 'group' except of 'main'
                 // recieve value to slit array elements by
@@ -240,7 +286,11 @@ q_sort(int *orig_data, int orig_sz)
                 int tag = i;
                 MPI_Status status;
 
-                MPI_Recv(&split, 1, MPI_INT, src, tag, comm, &status);
+                MPI_Recv(&split, 1, MPI_INT, src, tag, working_comm, &status);
+                if (error_occured) {
+                    error_occured = 0;
+                    goto check_point_label;
+                }
             }        
 
             // split array by split value
@@ -251,8 +301,6 @@ q_sort(int *orig_data, int orig_sz)
             split_by_value(split, data, sz, &lt_split, &lt_split_sz, &ge_split, &ge_split_sz);
 
             free(data);
-            data = NULL;
-            sz = 0;
 
             // need this to decide this process sends or recieves first
             int i_bit_mask = (step >> 1);
@@ -265,15 +313,23 @@ q_sort(int *orig_data, int orig_sz)
             // first, it recieves lt_split array, and then sends ge_split array
             if (i_bit) {
                 int partner_rank = (rank & ~i_bit_mask);
-                int tag = comm_sz * i + rank;
+                int tag = nworking * i + rank;
 
                 // sent lt_split to partner
-                MPI_Send(lt_split, lt_split_sz, MPI_INT, partner_rank, tag, comm);
+                MPI_Send(lt_split, lt_split_sz, MPI_INT, partner_rank, tag, working_comm);
+                if (error_occured) {
+                    error_occured = 0;
+                    goto check_point_label;
+                }
         
                 MPI_Status status;
 
                 // need to know incoming partner's ge_split array size (i. e. partner_ge_split_sz)
-                MPI_Probe(partner_rank, tag, comm, &status);
+                MPI_Probe(partner_rank, tag, working_comm, &status);
+                if (error_occured) {
+                    error_occured = 0;
+                    goto check_point_label;
+                }
                 int partner_ge_split_sz = 0;
                 MPI_Get_count(&status, MPI_INT, &partner_ge_split_sz);
 
@@ -281,7 +337,11 @@ q_sort(int *orig_data, int orig_sz)
 
                 // recieve ge_split from partner
                 MPI_Recv(partner_ge_split, partner_ge_split_sz, 
-                        MPI_INT, partner_rank, tag, comm, &status);
+                        MPI_INT, partner_rank, tag, working_comm, &status);
+                if (error_occured) {
+                    error_occured = 0;
+                    goto check_point_label;
+                }
                 // collect new data from ge_split & partner_ge_split
 
                 sz = ge_split_sz + partner_ge_split_sz;
@@ -295,11 +355,15 @@ q_sort(int *orig_data, int orig_sz)
                 }
             } else {
                 int partner_rank = (rank | i_bit_mask);
-                int tag = comm_sz * i + partner_rank;
+                int tag = nworking * i + partner_rank;
                 MPI_Status status;
 
                 // need to know incoming partner's lt_split array size (i. e. partner_lt_split_sz)
-                MPI_Probe(partner_rank, tag, comm, &status);
+                MPI_Probe(partner_rank, tag, working_comm, &status);
+                if (error_occured) {
+                    error_occured = 0;
+                    goto check_point_label;
+                }
                 int partner_lt_split_sz = 0;
                 MPI_Get_count(&status, MPI_INT, &partner_lt_split_sz);
 
@@ -307,9 +371,17 @@ q_sort(int *orig_data, int orig_sz)
 
                 // recieve lt_split from partner
                 MPI_Recv(partner_lt_split, partner_lt_split_sz, 
-                        MPI_INT, partner_rank, tag, comm, &status);
+                        MPI_INT, partner_rank, tag, working_comm, &status);
+                if (error_occured) {
+                    error_occured = 0;
+                    goto check_point_label;
+                }
                 // sent ge_split to partner
-                MPI_Send(ge_split, ge_split_sz, MPI_INT, partner_rank, tag, comm);
+                MPI_Send(ge_split, ge_split_sz, MPI_INT, partner_rank, tag, working_comm);
+                if (error_occured) {
+                    error_occured = 0;
+                    goto check_point_label;
+                }
 
                 // collect new data from lt_split & partner_lt_split
                 sz = lt_split_sz + partner_lt_split_sz;
@@ -330,14 +402,17 @@ q_sort(int *orig_data, int orig_sz)
             if (ge_split) {
                 free(ge_split);
             }
-
-            MPI_Barrier(comm);
-
-            save_check_point(data, sz);
-            if (data) {
-                free(data);
-            }
         }
+
+        MPI_Barrier(comm);
+        if (rank < nworking) {
+            save_check_point(data, sz);
+            free(data);
+        }
+    }
+
+    if (rank < nworking) {
+        load_check_point(&data, &sz);
     }
 
     // every process sends its array elements number to process 0
@@ -348,32 +423,41 @@ q_sort(int *orig_data, int orig_sz)
 
     int *recvcounts = NULL;
     if (rank == ROOT) {
-        recvcounts = (int *) calloc(comm_sz, sizeof(int));
+        recvcounts = (int *) calloc(nworking, sizeof(int));
     }
 
     if (rank < nworking) {
-        MPI_Gather(&sz, 1, MPI_INT, recvcounts, 1, MPI_INT, ROOT, comm);
+        MPI_Gather(&sz, 1, MPI_INT, recvcounts, 1, MPI_INT, ROOT, working_comm);
     }
 
     int *recvoffsets = NULL;
     
     if (rank == ROOT) {
-        recvoffsets = (int *) calloc(comm_sz, sizeof(int));
+        recvoffsets = (int *) calloc(nworking, sizeof(int));
         recvoffsets[0] = 0;
-        for (int i = 1; i < comm_sz; ++i) {
+        for (int i = 1; i < nworking; ++i) {
             recvoffsets[i] = recvoffsets[i - 1] + recvcounts[i - 1];
         }
     }
 
     //gathering all the sorted array parts together
     if (rank < nworking) {
-        MPI_Gatherv(data, sz, MPI_INT, orig_data, recvcounts, recvoffsets, MPI_INT, ROOT, comm);
+        MPI_Gatherv(data, sz, MPI_INT, orig_data, recvcounts, recvoffsets, MPI_INT, ROOT, working_comm);
+        free(data);
     }
 
     if (rank == ROOT) {
         free(recvcounts);
         free(recvoffsets);
+        printf("after sort: ");
+        for (int i = 0; i < orig_sz; ++i) {
+            printf("%d ", orig_data[i]);
+        }
+        printf("\n");
     }
 
+    free(working_ranks);
+
+    MPI_Barrier(comm);
     MPI_Finalize();
 }
