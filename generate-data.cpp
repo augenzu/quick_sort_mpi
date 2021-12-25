@@ -1,5 +1,5 @@
 #include "generate-data.h"
-#include <cstdlib>
+#include <stdlib.h>
 
 int *
 test_data(int sz)

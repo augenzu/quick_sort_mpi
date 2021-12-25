@@ -1,11 +1,10 @@
 #include "test.h"
-#include <iostream>
-#include <cstdlib>
+#include <stdlib.h>
 
 int
 main(int argc, char **argv)
 {
-    int elm_cnt = std::atoi(argv[1]);
+    int elm_cnt = atoi(argv[1]);
 
     test(elm_cnt);
     

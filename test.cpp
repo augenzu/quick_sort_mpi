@@ -1,7 +1,7 @@
-#include "test.h"
 #include "generate-data.h"
 #include "qsort-mpi.h"
-#include <cstdlib>
+#include "test.h"
+#include <stdlib.h>
 
 void
 test(int sz)
