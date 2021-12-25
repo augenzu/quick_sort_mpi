@@ -1,23 +1,22 @@
 CC=mpicxx
-CFLAGS=-c# -std=c++11
-#LDFLAGS=-std=c++11
+CFLAGS=-c
 
 all: main
 
 main: main.o test.o qsort-mpi.o generate-data.o
 	$(CC) $(LDFLAGS) main.o test.o qsort-mpi.o generate-data.o -o main
 
-main.o: main.cpp
-	$(CC) $(CFLAGS) main.cpp -o main.o
+main.o: main.c
+	$(CC) $(CFLAGS) main.c -o main.o
 
-test.o: test.cpp
-	$(CC) $(CFLAGS) test.cpp -o test.o
+test.o: test.c
+	$(CC) $(CFLAGS) test.c -o test.o
 
-qsort-mpi.o: qsort-mpi.cpp
-	$(CC) $(CFLAGS) qsort-mpi.cpp -o qsort-mpi.o
+qsort-mpi.o: qsort-mpi.c
+	$(CC) $(CFLAGS) qsort-mpi.c -o qsort-mpi.o
 
-generate-data.o: generate-data.cpp
-	$(CC) $(CFLAGS) generate-data.cpp -o generate-data.o
+generate-data.o: generate-data.c
+	$(CC) $(CFLAGS) generate-data.c -o generate-data.o
 
 clean:
 	rm -f main *.o
