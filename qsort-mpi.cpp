@@ -1,24 +1,71 @@
 #include "qsort-mpi.h"
-#include <iomanip>
-#include <iostream>
-#include <cstring>
+#include "mpi.h"
+#include "mpi-ext.h"
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-// calculates integer log2(num)
-// works only if num == 2**deg && deg in [0, 30]
-int
-log2(int num)
+#define NAUXILARY 3
+#define MAX_NUMBER_LEN 10
+#define RADIX 10
+#define ROOT 0
+#define WANNA_DIE_RANK 1
+
+MPI_Comm comm;
+int rank;
+int err_occured = 1;
+
+void
+save_check_point(int *data, int data_sz)
 {
-    enum { MAX_DEG = 30 };
+    char fname[MAX_NUMBER_LEN];
+    itoa(rank, fname, RADIX);
+    FILE *fout = fopen(fname, "wb");
+    fwrite(&data_sz, sizeof(int),  1, fout);
+    fwrite(data, sizeof(int),  data_sz, fout);
+    fclose(fout);
+}
 
-    int deg = MAX_DEG;
-    int powered = (1 << deg);
-
-    while (powered && (powered & num) != powered) {
-        powered >>= 1;
-        --deg;    
+void
+load_check_point(int **data, int *data_sz)
+{
+    char fname[MAX_NUMBER_LEN];
+    itoa(rank, fname, RADIX);
+    FILE *fin = fopen(fname, "rb");
+    fread(data_sz, sizeof(int),  1, fin);
+    if (*data_sz == 0) {
+        *data = NULL;
+        return;
     }
+    *data = (int *) calloc(*data_sz, sizeof(int));
+    fread(*data, sizeof(int),  *data_sz, fin);
+    fclose(fin);
+}
 
-    return deg;
+void
+verbose_errhandler(MPI_Comm *pcomm, int *perr, ...)
+{
+    err_occured = 1;
+
+    int err = *perr;
+
+    MPI_Group group_failed;
+    int nfailed;
+    MPIX_Comm_failure_ack(comm);
+    MPIX_Comm_failure_get_acked(comm, &group_failed);
+    MPI_Group_size(group_failed, &nfailed);
+
+    int comm_real_sz;
+    MPI_Comm_size(comm, &comm_real_sz);
+    char errstr[MPI_MAX_ERROR_STRING];
+    int len;
+    MPI_Error_string(err, errstr, &len);
+    printf("Rank %d / %d: Notified of error %s. %d found dead:\n",
+           rank, comm_real_sz, errstr, nfailed);
+
+    MPIX_Comm_shrink(comm, &comm);
+    MPI_Comm_rank(comm, &rank);
 }
 
 // fills array with equal values
@@ -105,169 +152,191 @@ q_sort(int *orig_data, int orig_sz)
 {    
     MPI_Init(NULL, NULL);
 
-    int root = 0;
+    comm = MPI_COMM_WORLD;
 
-    int comm_sz, rank;
-    MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Errhandler errh;
+    MPI_Comm_create_errhandler(verbose_errhandler, &errh);
+    MPI_Comm_set_errhandler(comm, errh);
 
-    int deg = log2(comm_sz);
-    int dims[deg];
-    fill_array(dims, deg, 2);
-    int periods[deg];
-    fill_array(periods, deg, 0);
-    int reorder = 0;
+    int comm_sz;
+    MPI_Comm_size(comm, &comm_sz);
+    MPI_Comm_rank(comm, &rank);
 
-    // communicator for hypercube topology
-    MPI_Comm hypercube_comm;
-    MPI_Cart_create(MPI_COMM_WORLD, deg, dims, periods, reorder, &hypercube_comm);
+    int nworking = comm_sz - NAUXILARY;
 
-    int part_sz = orig_sz / comm_sz;
-    int shift = orig_sz - (part_sz * comm_sz);
-
+    int *data = NULL;
     int sz = 0;
-    if (rank == root) {
-        sz = part_sz + shift;
-    } else {
-        sz = part_sz;
-    }
-    int *data = (int *) calloc(sz, sizeof(int));
 
-    int *sendcounts = NULL;
-    int *sendoffsets = NULL;
-    if (rank == root) {
-        sendcounts = (int *) calloc(comm_sz, sizeof(int));
-        sendcounts[0] = sz;
-        for (int i = 1; i < comm_sz; ++i) {
-            sendcounts[i] = part_sz;
+    if (rank < nworking) {
+        int part_sz = orig_sz / nworking;
+        int shift = orig_sz - (part_sz * comm_sz);
+
+        if (rank == ROOT) {
+            sz = part_sz + shift;
+        } else {
+            sz = part_sz;
         }
-        sendoffsets = (int *) calloc(comm_sz, sizeof(int));
-        sendoffsets[0] = 0;
-        for (int i = 1; i < comm_sz; ++i) {
-            sendoffsets[i] = sendoffsets[i - 1] + sendcounts[i - 1];
+        data = (int *) calloc(sz, sizeof(int));
+
+        int *sendcounts = NULL;
+        int *sendoffsets = NULL;
+        if (rank == ROOT) {
+            sendcounts = (int *) calloc(comm_sz, sizeof(int));
+            sendcounts[0] = sz;
+            for (int i = 1; i < comm_sz; ++i) {
+                sendcounts[i] = part_sz;
+            }
+            sendoffsets = (int *) calloc(comm_sz, sizeof(int));
+            sendoffsets[0] = 0;
+            for (int i = 1; i < comm_sz; ++i) {
+                sendoffsets[i] = sendoffsets[i - 1] + sendcounts[i - 1];
+            }
+        }
+
+        MPI_Scatterv(orig_data, sendcounts, sendoffsets, MPI_INT, data, sz, MPI_INT, ROOT, comm);
+
+        // sort & save each array part
+        qsort(data, sz, sizeof(int), cmp);
+        save_check_point(data, sz);
+        if (data) {
+            free(data);
         }
     }
 
-    MPI_Scatterv(orig_data, sendcounts, sendoffsets, MPI_INT, data, sz, MPI_INT, root, hypercube_comm);
-
-    if (rank == root) {
+    if (rank == ROOT) {
         free(sendcounts);
         free(sendoffsets);
     }
 
-    // sort each array part
-    qsort(data, sz, sizeof(int), cmp);
+    if (rank == WANNA_DIE_RANK) {
+        raise(SIGKILL);
+    }
 
     // main sorting cycle
     for (int i = deg; i > 0; --i) {
-        int step = (1 << i);
-        int mask = ~(step - 1);
-        int split = 0;  // i.e. pivot - value to split array elements by
+        while (error_occured) {
+            error_occured = 0;
 
-        // calculate and send & recieve split values within a groups
-        if ((rank & mask) == rank) {  // 'main' process in a 'group'
-            // value to slit 'group' array elements by
-            split = (data[0] + data[sz - 1]) / 2;
-            // send split value to other 'group' members
-            for (int dst = rank + 1; dst < rank + step; ++dst) {
+            MPI_Barrier(comm);
+
+            load_check_point(&data, &sz);
+
+            int step = (1 << i);
+            int mask = ~(step - 1);
+            int split = 0;  // i.e. pivot - value to split array elements by
+
+            // calculate and send & recieve split values within a groups
+            if ((rank & mask) == rank) {  // 'main' process in a 'group'
+                // value to slit 'group' array elements by
+                split = (data[0] + data[sz - 1]) / 2;
+                // send split value to other 'group' members
+                for (int dst = rank + 1; dst < rank + step; ++dst) {
+                    int tag = i;
+                    MPI_Send(&split, 1, MPI_INT, dst, tag, comm);
+                }
+            } else {  // all the processes in a 'group' except of 'main'
+                // recieve value to slit array elements by
+                int src = (rank & mask);
                 int tag = i;
-                MPI_Send(&split, 1, MPI_INT, dst, tag, hypercube_comm);
+                MPI_Status status;
+
+                MPI_Recv(&split, 1, MPI_INT, src, tag, comm, &status);
+            }        
+
+            // split array by split value
+            int *lt_split = NULL;
+            int *ge_split = NULL;
+            int lt_split_sz = 0;
+            int ge_split_sz = 0;
+            split_by_value(split, data, sz, &lt_split, &lt_split_sz, &ge_split, &ge_split_sz);
+
+            free(data);
+            data = NULL;
+            sz = 0;
+
+            // need this to decide this process sends or recieves first
+            int i_bit_mask = (step >> 1);
+            int i_bit = (rank & i_bit_mask);
+
+            // process with i_bit == 1 sends lt_split array to its partner
+            // (partner - process with the same rank number except of i_bit == 0)
+            // and then recieves from it its ge_split array;
+            // the partner, therefore, does the opposite:
+            // first, it recieves lt_split array, and then sends ge_split array
+            if (i_bit) {
+                int partner_rank = (rank & ~i_bit_mask);
+                int tag = comm_sz * i + rank;
+
+                // sent lt_split to partner
+                MPI_Send(lt_split, lt_split_sz, MPI_INT, partner_rank, tag, comm);
+        
+                MPI_Status status;
+
+                // need to know incoming partner's ge_split array size (i. e. partner_ge_split_sz)
+                MPI_Probe(partner_rank, tag, comm, &status);
+                int partner_ge_split_sz = 0;
+                MPI_Get_count(&status, MPI_INT, &partner_ge_split_sz);
+
+                int *partner_ge_split = (int *) calloc(partner_ge_split_sz, sizeof(int));
+
+                // recieve ge_split from partner
+                MPI_Recv(partner_ge_split, partner_ge_split_sz, 
+                        MPI_INT, partner_rank, tag, comm, &status);
+                // collect new data from ge_split & partner_ge_split
+
+                sz = ge_split_sz + partner_ge_split_sz;
+                data = (int *) calloc(sz, sizeof(int));
+                // merge ge_split with partner_ge_split to data
+                merge(ge_split, ge_split_sz, partner_ge_split, partner_ge_split_sz, data);
+
+                // remove auxilary array
+                if (partner_ge_split) {
+                    free(partner_ge_split);
+                }
+            } else {
+                int partner_rank = (rank | i_bit_mask);
+                int tag = comm_sz * i + partner_rank;
+                MPI_Status status;
+
+                // need to know incoming partner's lt_split array size (i. e. partner_lt_split_sz)
+                MPI_Probe(partner_rank, tag, comm, &status);
+                int partner_lt_split_sz = 0;
+                MPI_Get_count(&status, MPI_INT, &partner_lt_split_sz);
+
+                int *partner_lt_split = (int *) calloc(partner_lt_split_sz, sizeof(int));
+
+                // recieve lt_split from partner
+                MPI_Recv(partner_lt_split, partner_lt_split_sz, 
+                        MPI_INT, partner_rank, tag, comm, &status);
+                // sent ge_split to partner
+                MPI_Send(ge_split, ge_split_sz, MPI_INT, partner_rank, tag, comm);
+
+                // collect new data from lt_split & partner_lt_split
+                sz = lt_split_sz + partner_lt_split_sz;
+                data = (int *) calloc(sz, sizeof(int));
+                // merge lt_split with partner_lt_split to data
+                merge(lt_split, lt_split_sz, partner_lt_split, partner_lt_split_sz, data);
+
+                // remove auxilary array
+                if (partner_lt_split) {
+                    free(partner_lt_split);
+                }
             }
-        } else {  // all the processes in a 'group' except of 'main'
-            // recieve value to slit array elements by
-            int src = (rank & mask);
-            int tag = i;
-            MPI_Status status;
 
-            MPI_Recv(&split, 1, MPI_INT, src, tag, hypercube_comm, &status);
-        }        
-
-        // split array by split value
-        int *lt_split = NULL;
-        int *ge_split = NULL;
-        int lt_split_sz = 0;
-        int ge_split_sz = 0;
-        split_by_value(split, data, sz, &lt_split, &lt_split_sz, &ge_split, &ge_split_sz);
-
-        free(data);
-        data = NULL;
-        sz = 0;
-
-        // need this to decide this process sends or recieves first
-        int i_bit_mask = (step >> 1);
-        int i_bit = (rank & i_bit_mask);
-
-        // process with i_bit == 1 sends lt_split array to its partner
-        // (partner - process with the same rank number except of i_bit == 0)
-        // and then recieves from it its ge_split array;
-        // the partner, therefore, does the opposite:
-        // first, it recieves lt_split array, and then sends ge_split array
-        if (i_bit) {
-            int partner_rank = (rank & ~i_bit_mask);
-            int tag = comm_sz * i + rank;
-
-            // sent lt_split to partner
-            MPI_Send(lt_split, lt_split_sz, MPI_INT, partner_rank, tag, hypercube_comm);
-      
-            MPI_Status status;
-
-            // need to know incoming partner's ge_split array size (i. e. partner_ge_split_sz)
-            MPI_Probe(partner_rank, tag, hypercube_comm, &status);
-            int partner_ge_split_sz = 0;
-            MPI_Get_count(&status, MPI_INT, &partner_ge_split_sz);
-
-            int *partner_ge_split = (int *) calloc(partner_ge_split_sz, sizeof(int));
-
-            // recieve ge_split from partner
-            MPI_Recv(partner_ge_split, partner_ge_split_sz, 
-                    MPI_INT, partner_rank, tag, hypercube_comm, &status);
-            // collect new data from ge_split & partner_ge_split
-
-            sz = ge_split_sz + partner_ge_split_sz;
-            data = (int *) calloc(sz, sizeof(int));
-            // merge ge_split with partner_ge_split to data
-            merge(ge_split, ge_split_sz, partner_ge_split, partner_ge_split_sz, data);
-
-            // remove auxilary array
-            if (partner_ge_split) {
-                free(partner_ge_split);
+            // remove auxilary arrays after splitting, swapping and merging
+            if (lt_split) {
+                free(lt_split);
             }
-        } else {
-            int partner_rank = (rank | i_bit_mask);
-            int tag = comm_sz * i + partner_rank;
-            MPI_Status status;
-
-            // need to know incoming partner's lt_split array size (i. e. partner_lt_split_sz)
-            MPI_Probe(partner_rank, tag, hypercube_comm, &status);
-            int partner_lt_split_sz = 0;
-            MPI_Get_count(&status, MPI_INT, &partner_lt_split_sz);
-
-            int *partner_lt_split = (int *) calloc(partner_lt_split_sz, sizeof(int));
-
-            // recieve lt_split from partner
-            MPI_Recv(partner_lt_split, partner_lt_split_sz, 
-                    MPI_INT, partner_rank, tag, hypercube_comm, &status);
-            // sent ge_split to partner
-            MPI_Send(ge_split, ge_split_sz, MPI_INT, partner_rank, tag, hypercube_comm);
-
-            // collect new data from lt_split & partner_lt_split
-            sz = lt_split_sz + partner_lt_split_sz;
-            data = (int *) calloc(sz, sizeof(int));
-            // merge lt_split with partner_lt_split to data
-            merge(lt_split, lt_split_sz, partner_lt_split, partner_lt_split_sz, data);
-
-            // remove auxilary array
-            if (partner_lt_split) {
-                free(partner_lt_split);
+            if (ge_split) {
+                free(ge_split);
             }
-        }
 
-        // remove auxilary arrays after splitting, swapping and merging
-        if (lt_split) {
-            free(lt_split);
-        }
-        if (ge_split) {
-            free(ge_split);
+            MPI_Barrier(comm);
+
+            save_check_point(data, sz);
+            if (data) {
+                free(data);
+            }
         }
     }
 
@@ -278,15 +347,17 @@ q_sort(int *orig_data, int orig_sz)
     // to orig_data in process 0)
 
     int *recvcounts = NULL;
-    if (rank == root) {
+    if (rank == ROOT) {
         recvcounts = (int *) calloc(comm_sz, sizeof(int));
     }
 
-    MPI_Gather(&sz, 1, MPI_INT, recvcounts, 1, MPI_INT, root, hypercube_comm);
+    if (rank < nworking) {
+        MPI_Gather(&sz, 1, MPI_INT, recvcounts, 1, MPI_INT, ROOT, comm);
+    }
 
     int *recvoffsets = NULL;
     
-    if (rank == root) {
+    if (rank == ROOT) {
         recvoffsets = (int *) calloc(comm_sz, sizeof(int));
         recvoffsets[0] = 0;
         for (int i = 1; i < comm_sz; ++i) {
@@ -295,9 +366,11 @@ q_sort(int *orig_data, int orig_sz)
     }
 
     //gathering all the sorted array parts together
-    MPI_Gatherv(data, sz, MPI_INT, orig_data, recvcounts, recvoffsets, MPI_INT, root, hypercube_comm);
+    if (rank < nworking) {
+        MPI_Gatherv(data, sz, MPI_INT, orig_data, recvcounts, recvoffsets, MPI_INT, ROOT, comm);
+    }
 
-    if (rank == root) {
+    if (rank == ROOT) {
         free(recvcounts);
         free(recvoffsets);
     }
